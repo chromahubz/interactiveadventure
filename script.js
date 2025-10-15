@@ -732,7 +732,11 @@ async function getAIResponse(userPrompt) {
     try {
         // Limit history to the last 10 messages to manage token size
         const messagesToSend = [systemMessage, ...conversationHistory.slice(-10)];
-        
+
+        // DEBUG: Log conversation history
+        console.log('🔍 Conversation History Length:', conversationHistory.length);
+        console.log('🔍 Messages to send:', messagesToSend.map(m => ({ role: m.role, preview: m.content.substring(0, 50) + '...' })));
+
         let completion;
         const maxRetries = 3;
         let attempt = 0;
@@ -2223,6 +2227,7 @@ startGameButton.addEventListener('click', async () => {
     // Clear previous chat messages
     messagesContainer.innerHTML = '';
     // Clear inventory and party as it's a new game
+    conversationHistory = []; // Reset conversation history for new game
     inventoryItems = [];
     partyMembers = [];
     weapons = []; // New: clear weapons

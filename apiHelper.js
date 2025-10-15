@@ -1,4 +1,4 @@
-import { API_CONFIG, MODELS } from './config.js';
+import { API_CONFIG, MODELS, VOICES } from './config.js';
 
 console.log('🚀 API Helper loaded!', { GEMINI_API_KEY: API_CONFIG.GEMINI_API_KEY.substring(0, 10) + '...', FIREWORKS_API_KEY: API_CONFIG.FIREWORKS_API_KEY.substring(0, 10) + '...' });
 
@@ -173,8 +173,40 @@ export const websim = {
     },
     imageGen: async (options) => await fireworks.imageGen(options),
     textToSpeech: async ({ text, voice }) => {
-        // TTS will be implemented with ElevenLabs API later
-        return null;
+        try {
+            // Map voice parameter to ElevenLabs voice ID
+            const voiceId = VOICES.NARRATOR; // Default to narrator voice
+
+            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+                method: 'POST',
+                headers: {
+                    'xi-api-key': API_CONFIG.ELEVENLABS_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'audio/mpeg'
+                },
+                body: JSON.stringify({
+                    text: text,
+                    model_id: MODELS.ELEVENLABS_MODEL,
+                    voice_settings: {
+                        stability: 0.5,
+                        similarity_boost: 0.75
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                console.error('ElevenLabs API error:', response.status);
+                return null;
+            }
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+
+            return { url, blob };
+        } catch (error) {
+            console.error('ElevenLabs TTS Error:', error);
+            return null;
+        }
     }
 };
 
