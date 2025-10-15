@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Adventure</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <audio id="background-music" loop>
+        <source src="/tavern_music.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <audio id="writing-sound" src="/writing_sound.mp3" preload="auto"></audio>
+
+    <div id="start-screen-container">
+        <div id="start-menu" class="menu-screen">
+            <h1>Welcome, Adventurer!</h1>
+            <p>Embark on an epic journey. What universe or crossover would you like to explore today?</p>
+            <input type="text" id="universe-input" placeholder="e.g., Fantasy Realm, Sci-Fi Alliance, Cyberpunk D&D" autocomplete="off" required>
+            
+            <div id="race-selection-container">
+                <h2>Choose Your Race</h2>
+                <div id="race-buttons">
+                    <button class="race-button" data-race="Human">Human</button>
+                    <button class="race-button" data-race="Elf">Elf</button>
+                    <button class="race-button" data-race="Dwarf">Dwarf</button>
+                </div>
+                <div id="custom-race-container">
+                    <input type="text" id="custom-race-input" placeholder="Or create your own race...">
+                    <button id="generate-race-button" class="control-button"><i class="fas fa-wand-magic-sparkles"></i> Generate</button>
+                </div>
+                <div id="race-details-display" class="hidden">
+                    <h3 id="race-name-display"></h3>
+                    <h4>Traits</h4>
+                    <p id="race-traits-display"></p>
+                    <h4>Stats</h4>
+                    <p id="race-stats-display"></p>
+                </div>
+            </div>
+
+            <div id="class-selection-container">
+                <h2>Choose Your Class</h2>
+                <div id="class-buttons">
+                    <button class="class-button" data-class="Warrior">Warrior</button>
+                    <button class="class-button" data-class="Mage">Mage</button>
+                    <button class="class-button" data-class="Rogue">Rogue</button>
+                </div>
+                <div id="custom-class-container">
+                    <input type="text" id="custom-class-input" placeholder="Or create your own class...">
+                    <button id="generate-class-button" class="control-button"><i class="fas fa-wand-magic-sparkles"></i> Generate</button>
+                </div>
+                <div id="class-details-display" class="hidden">
+                    <h3 id="class-name-display"></h3>
+                    <h4>Moveset</h4>
+                    <p id="class-moveset-display"></p>
+                    <h4>Skill Tree</h4>
+                    <ul id="class-skill-tree-display"></ul>
+                </div>
+            </div>
+
+            <div id="character-photo-container" class="menu-screen">
+                <h2>Upload Your Character Photo <small class="optional-note">(optional)</small></h2>
+                <p>Choose a clear face photo to keep your character's look consistent.</p>
+                <div class="file-upload">
+                    <input type="file" id="character-photo-input" accept="image/*" style="display:none;">
+                    <label for="character-photo-input" class="file-upload-label"><i class="fas fa-image"></i> Upload Photo</label>
+                    <span id="character-photo-filename" class="file-upload-filename">No file chosen</span>
+                </div>
+                <img id="character-photo-preview" alt="Character Preview" style="display:none;">
+            </div>
+
+            <div id="image-style-container" class="menu-screen">
+                <h2>Image Style</h2>
+                <p>Select the visual style for generated scenes.</p>
+                <select id="image-style-select">
+                    <option value="pixel">Pixel Art</option>
+                    <option value="isometric">Isometric Pixel Art</option>
+                    <option value="watercolor">Watercolor Illustration</option>
+                    <option value="oil">Oil Painting</option>
+                    <option value="photo">Photorealistic</option>
+                    <option value="anime">Anime Style</option>
+                    <option value="sketch">Pencil Sketch</option>
+                </select>
+            </div>
+
+            <button id="start-game-button" class="control-button" disabled><i class="fas fa-play"></i> Start New Game</button>
+            <button id="load-game-menu-button" class="control-button"><i class="fas fa-folder-open"></i> Load Game</button>
+            <p id="mobile-info-inline" class="subtle-note">Mobile Support: This experience is mobile-friendly. For best results on phones, rotate to landscape.</p>
+        </div>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <div id="left-column">
+            <div id="game-controls">
+                <button id="undo-button" class="control-button" title="Undo" disabled><i class="fas fa-undo"></i></button>
+                <button id="save-button" class="control-button" title="Save"><i class="fas fa-save"></i></button>
+                <button id="load-button" class="control-button" title="Load"><i class="fas fa-folder-open"></i></button>
+                <button id="new-game-button" class="control-button" title="New Game"><i class="fas fa-plus"></i></button>
+                <button id="autoplay-button" class="control-button" title="Auto"><i class="fas fa-play"></i></button>
+                <button id="music-button" class="control-button" title="Music"><i class="fas fa-volume-mute"></i></button>
+                <button id="tts-button" class="control-button" title="Voice"><i class="fas fa-headphones"></i></button>
+                <button id="export-media-button" class="control-button" title="Export"><i class="fas fa-file-archive"></i></button>
+                <select id="image-style-select-in-game" class="toolbar-select" title="Image Style">
+                    <option value="pixel">Pixel Art</option>
+                    <option value="isometric">Isometric Pixel Art</option>
+                    <option value="watercolor">Watercolor Illustration</option>
+                    <option value="oil">Oil Painting</option>
+                    <option value="photo">Photorealistic</option>
+                    <option value="anime">Anime Style</option>
+                    <option value="sketch">Pencil Sketch</option>
+                </select>
+            </div>
+            <div id="left-column-scrollable-content">
+                <div id="chat-container">
+                    <div id="chat-header">
+                        <h2>Dungeon Master</h2>
+                    </div>
+                    <div id="chat-messages">
+                        <!-- Initial message will be added by script.js -->
+                    </div>
+                    <div id="typing-indicator" class="hidden">
+                        <div class="message ai-message">
+                            <div class="typing-dots">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="suggestion-buttons-container">
+                        <!-- Suggestion buttons will be dynamically added here -->
+                    </div>
+                    <form id="message-form">
+                        <textarea id="message-input" placeholder="What do you do?" autocomplete="off" required rows="1"></textarea>
+                        <button type="submit" aria-label="Send Message">
+                            <i class="fas fa-feather-pointed"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div id="right-panel">
+            <div id="right-panel-sticky-content">
+                <div id="image-container">
+                    <h2>Location</h2>
+                    <div id="location-image-wrapper">
+                        <img id="location-image" src="" alt="Current Location">
+                        <div id="image-loader" class="hidden">
+                            <div class="typing-dots"><span></span><span></span><span></span></div>
+                        </div>
+                        <button id="expand-image-button" class="control-button" title="Fullscreen"><i class="fas fa-expand"></i></button>
+                    </div>
+                </div>
+                <div id="right-panel-scrollable-content">
+                    <div id="player-status-container">
+                        <h2>Player Status</h2>
+                        <div id="player-info">
+                            <div class="player-details">
+                                <span class="player-name">You</span>
+                                <div id="player-level-xp-container">
+                                    <span id="player-level">Level 1</span>
+                                    <div class="xp-bar-container">
+                                        <div id="player-xp-bar" class="xp-bar-fill" style="width: 0%;"></div>
+                                        <span id="player-xp-text" class="xp-bar-text">0 / 100 XP</span>
+                                    </div>
+                                </div>
+                                <div class="hp-bar-container">
+                                    <div id="player-hp-bar" class="hp-bar-fill" style="width: 100%;"></div>
+                                    <span id="player-hp-text" class="hp-bar-text">100 / 100</span>
+                                </div>
+                            </div>
+                            <div id="player-status-effects" class="status-effects-container">
+                                <!-- Status effects will be added here -->
+                            </div>
+                            <div id="player-stats-display">
+                                <!-- Player stats will be dynamically added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div id="race-menu-container" class="hidden">
+                        <h2>Racial Traits <span id="race-skill-points-display">(0 points)</span></h2>
+                        <ul id="race-skills-list">
+                        </ul>
+                    </div>
+                    <div id="skill-tree-container" class="hidden">
+                        <h2>Skill Tree <span id="skill-points-display">(0 points)</span></h2>
+                        <ul id="skill-tree-list">
+                        </ul>
+                    </div>
+                    <div id="evolution-container" class="hidden">
+                        <h2>Evolution</h2>
+                        <div id="evolution-info-text"></div>
+                        <ul id="evolution-options-list">
+                            <!-- Evolution options will be dynamically added here -->
+                        </ul>
+                    </div>
+                    <div id="equip-container">
+                        <h2>Equipment</h2>
+                        <ul id="equipment-list">
+                            <!-- Equipment slots will be dynamically added here -->
+                        </ul>
+                    </div>
+                    <div id="party-container">
+                        <h2>Your Party</h2>
+                        <ul id="party-members-list">
+                        </ul>
+                    </div>
+                    <div id="item-container">
+                        <h2>Items</h2>
+                        <ul id="item-list">
+                            <!-- Items will be dynamically added here -->
+                        </ul>
+                    </div>
+                    <div id="weapon-container">
+                        <h2>Weapons</h2>
+                        <ul id="weapon-list">
+                        </ul>
+                    </div>
+                    <div id="armor-container">
+                        <h2>Armor</h2>
+                        <ul id="armor-list">
+                        </ul>
+                    </div>
+                    <div id="ring-container">
+                        <h2>Rings</h2>
+                        <ul id="ring-list">
+                        </ul>
+                    </div>
+                    <div id="encounter-container">
+                        <h2>Encounters</h2>
+                        <ul id="encounter-list">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Context Menu -->
+    <div id="message-context-menu" class="context-menu hidden">
+        <ul>
+            <li id="edit-message-button"><i class="fas fa-pencil-alt"></i> Edit</li>
+            <li id="regenerate-message-button"><i class="fas fa-sync-alt"></i> Regenerate</li>
+            <li id="voice-read-button"><i class="fas fa-headphones"></i> Voice Read</li>
+        </ul>
+    </div>
+
+    <!-- Character Details Modal -->
+    <div id="character-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div class="modal-header">
+                <img id="modal-character-icon" src="" alt="Character Icon">
+                <h2 id="modal-character-name"></h2>
+            </div>
+            <div class="modal-body">
+                <h3>Description</h3>
+                <p id="modal-character-description"></p>
+                <h3>Stats</h3>
+                <p id="modal-character-stats"></p>
+                <h3>Moveset</h3>
+                <p id="modal-character-moveset"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-upgrade-button" class="control-button"><i class="fas fa-arrow-up"></i> Upgrade</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item/Equipment Details Modal -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div class="modal-header">
+                <img id="modal-details-icon" src="" alt="Item Icon">
+                <div class="modal-header-text">
+                    <h2 id="modal-details-name"></h2>
+                    <small id="modal-details-type"></small>
+                </div>
+            </div>
+            <div class="modal-body">
+                <h3>Description</h3>
+                <p id="modal-details-description"></p>
+                <div id="modal-details-info-container">
+                    <h3 id="modal-details-info-header">Info</h3>
+                    <p id="modal-details-info"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Party Member Upgrade Modal -->
+    <div id="party-upgrade-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div class="modal-header">
+                <img id="modal-upgrade-character-icon" src="" alt="Character Icon">
+                <h2 id="modal-upgrade-character-name"></h2>
+            </div>
+            <div class="modal-body">
+                <h3>Upgrade Stats <span id="party-upgrade-skill-points-display-stats"></span></h3>
+                <ul id="party-upgrade-stats-list">
+                    <!-- Stats will be dynamically added here -->
+                </ul>
+                <h3>Upgrade Moves <span id="party-upgrade-skill-points-display-moves"></span></h3>
+                <ul id="party-upgrade-moves-list">
+                    <!-- Moves/Skills will be dynamically added here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm New Game Modal -->
+    <div id="confirm-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button" id="confirm-modal-close">&times;</span>
+        <h2 style="margin-top:0;">Start New Game</h2>
+        <p>Are you sure you want to start a new game? Your current progress will be lost.</p>
+        <div class="modal-actions">
+          <button id="confirm-new-yes" class="control-button"><i class="fas fa-check"></i> Yes</button>
+          <button id="confirm-new-no" class="control-button"><i class="fas fa-times"></i> No</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dice Roll Animation Overlay -->
+    <div id="dice-roll-overlay" class="hidden">
+        <div id="dice-animation-container">
+            <img id="dice-image" src="/d20.png" alt="Rolling Dice">
+        </div>
+        <div id="dice-result-text"></div>
+    </div>
+
+    <input type="file" id="file-loader" accept=".json" style="display: none;">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "audioManager.js": "./audioManager.js"
+            }
+        }
+    </script>
+    <script type="module" src="script.js"></script>
+
+<div id="fullscreen-overlay">
+    <img id="fullscreen-image" alt="Fullscreen Scene">
+</div>
+
+</body>
+</html>
