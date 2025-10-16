@@ -332,10 +332,45 @@ body {
     border-bottom-left-radius: 2px;
     cursor: pointer; /* New: Indicate that AI messages are clickable */
     transition: background-color 0.2s;
+    position: relative;
+    padding-right: 40px; /* Make room for audio button */
 }
 
 .ai-message:hover {
     background-color: #4f4f4f; /* Slightly lighter on hover */
+}
+
+/* Audio button for each AI message */
+.message-audio-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: transparent;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 1em;
+    opacity: 0.7;
+    transition: opacity 0.2s, color 0.2s;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.message-audio-btn:hover {
+    opacity: 1;
+}
+
+.message-audio-btn.playing {
+    color: #ff6b6b;
+    opacity: 1;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
 }
 
 /* New: Dice Roll Styling */

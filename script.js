@@ -1249,11 +1249,26 @@ function addMessage(text, sender) {
             return `<span class="dice-roll"><i class="fas fa-dice-d20"></i> ${p1.trim()}</span>`;
         });
         messageElement.innerHTML = messageText;
-        if (!suppressTTS && ttsNarrative && ttsEnabled) enqueueTTS(ttsNarrative);
+
+        // Add audio button for AI messages
+        if (ttsNarrative && ttsEnabled) {
+            const audioBtn = document.createElement('button');
+            audioBtn.className = 'message-audio-btn';
+            audioBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+            audioBtn.title = 'Play/Stop Audio';
+            audioBtn.onclick = (e) => {
+                e.stopPropagation();
+                toggleMessageAudio(messageElement, ttsNarrative, audioBtn);
+            };
+            messageElement.appendChild(audioBtn);
+        }
+
+        // Don't auto-play anymore - let user click button per message
+        // if (!suppressTTS && ttsNarrative && ttsEnabled) enqueueTTS(ttsNarrative);
     } else {
         messageElement.textContent = text;
     }
-    
+
     messagesContainer.appendChild(messageElement);
     scrollToBottom();
 }
@@ -3473,10 +3488,97 @@ function enqueueTTS(text) {
         return chunks;
     }, []);
     ttsQueue.push(...parts);
-    if (!isSpeaking) processTTS();
+    // Don't auto-play anymore - let user click button per message
 }
 
-// New: Function to process text-to-speech
+// Cache for TTS audio per message (avoid regenerating)
+const ttsAudioCache = new Map(); // key: messageText, value: { url, audio }
+
+// New: Function to generate and cache TTS for a message
+async function generateTTSForMessage(text, messageElement) {
+    // Check cache first
+    if (ttsAudioCache.has(text)) {
+        return ttsAudioCache.get(text);
+    }
+
+    try {
+        const result = await websim.textToSpeech({ text, voice: selectedVoice });
+        if (!result || !result.url) {
+            return null;
+        }
+
+        const audioData = {
+            url: result.url,
+            audio: new Audio(result.url)
+        };
+
+        // Cache it
+        ttsAudioCache.set(text, audioData);
+        ttsAudioUrls.push({ url: result.url, ts: Date.now(), index: ttsAudioUrls.length + 1 });
+
+        return audioData;
+    } catch (error) {
+        console.error('TTS generation error:', error);
+        return null;
+    }
+}
+
+// New: Play/stop audio for a specific message
+async function toggleMessageAudio(messageElement, text, button) {
+    const audioData = messageElement._audioData || await generateTTSForMessage(text, messageElement);
+
+    if (!audioData) {
+        console.error('Failed to generate TTS');
+        return;
+    }
+
+    messageElement._audioData = audioData;
+    const audio = audioData.audio;
+
+    // If this audio is playing, stop it
+    if (currentTtsAudio === audio && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+        currentTtsAudio = null;
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';
+        button.classList.remove('playing');
+        return;
+    }
+
+    // Stop any other playing audio
+    if (currentTtsAudio && !currentTtsAudio.paused) {
+        currentTtsAudio.pause();
+        currentTtsAudio.currentTime = 0;
+        // Update other button states
+        document.querySelectorAll('.message-audio-btn.playing').forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-volume-up"></i>';
+            btn.classList.remove('playing');
+        });
+    }
+
+    // Play this audio
+    currentTtsAudio = audio;
+    button.innerHTML = '<i class="fas fa-stop"></i>';
+    button.classList.add('playing');
+
+    audio.onended = () => {
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';
+        button.classList.remove('playing');
+        if (currentTtsAudio === audio) {
+            currentTtsAudio = null;
+        }
+    };
+
+    try {
+        await audio.play();
+    } catch (error) {
+        console.error('Audio play error:', error);
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';
+        button.classList.remove('playing');
+    }
+}
+
+// New: Function to process text-to-speech (simplified - now just for legacy support)
 async function processTTS() {
     if (ttsQueue.length === 0) { isSpeaking = false; return; }
     isSpeaking = true;
@@ -3488,6 +3590,9 @@ async function processTTS() {
             processTTS();
             return;
         }
+        // Handle any currently playing audio before starting new one
+        await handleAudioInterruption();
+
         const audio = new Audio(result.url);
         currentTtsAudio = audio;
         ttsAudioUrls.push({ url: result.url, ts: Date.now(), index: ttsAudioUrls.length + 1 });
