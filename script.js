@@ -12,6 +12,22 @@ const typingIndicator = document.getElementById('typing-indicator');
 const suggestionButtonsContainer = document.getElementById('suggestion-buttons-container'); // New: Suggestions container
 const backgroundMusic = document.getElementById('background-music');
 const writingSound = document.getElementById('writing-sound');
+const pixelClickSound = new Audio('/pixel_click.mp3');
+pixelClickSound.volume = 0.4; // Set volume for click sound
+
+// Add click sound to all buttons
+function playClickSound() {
+    pixelClickSound.currentTime = 0; // Reset to start for rapid clicks
+    pixelClickSound.play().catch(err => console.error('Click sound error:', err));
+}
+
+// Add click listeners to all control buttons
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.control-button, button, .race-button, .class-button').forEach(btn => {
+        btn.addEventListener('click', playClickSound);
+    });
+});
+
 const undoButton = document.getElementById('undo-button');
 const saveButton = document.getElementById('save-button');
 const loadButton = document.getElementById('load-button');
@@ -536,35 +552,108 @@ function updateControlButtons() {
     undoButton.disabled = !canUndo;
 }
 
-// Music Management
-const musicMap = {
-    'tavern': '/tavern_music.mp3',
-    'village': '/RPG Towns Music & RPG Villages Music [xu2pESvXcmM].mp3',
-    'town': '/RPG Towns Music & RPG Villages Music [xu2pESvXcmM].mp3',
-    'shop': '/town_shop_music.mp3', // New shop music
-    'club': '/club_music.mp3', // New club music
-    'mountain': '/mountain_music.mp3',
-    'farm': '/farm_music.mp3',
-    'cabin': '/cabin_music.mp3',
-    'forest': '/forest_music.mp3',
-    'cave': '/cave_music.mp3',
-    'dungeon': '/cave_music.mp3', // reuse cave for dungeon
-    'evil_lair': '/evil_lair_music.mp3',
-    'battle': '/Clash of Steel.mp3',
-    // New music types for fictional worlds/RPG scenarios
-    'sci_fi_base': '/sci_fi_ambient.mp3',
-    'cyber_city': '/cyberpunk_city_music.mp3',
-    'ancient_ruins': '/ancient_ruins_music.mp3',
-    'castle': '/castle_music.mp3'
+// Music Management - Genre-based system
+const genreTracks = {
+    medieval: [
+        '/rpgadventuremusic/mediaval.mp3',
+        '/rpgadventuremusic/medival.mp3',
+        '/rpgadventuremusic/medival (2).mp3',
+        '/rpgadventuremusic/medival (3).mp3',
+        '/rpgadventuremusic/medival (4).mp3',
+        '/rpgadventuremusic/medival (5).mp3'
+    ],
+    scifi: [
+        '/rpgadventuremusic/scifi.mp3',
+        '/rpgadventuremusic/scifi (2).mp3',
+        '/rpgadventuremusic/scifi (3).mp3',
+        '/rpgadventuremusic/scifi (4).mp3',
+        '/rpgadventuremusic/scifi (5).mp3',
+        '/rpgadventuremusic/scifi (6).mp3',
+        '/rpgadventuremusic/scifi (7).mp3',
+        '/rpgadventuremusic/scifi (8).mp3',
+        '/rpgadventuremusic/scifi (9).mp3',
+        '/rpgadventuremusic/scifi (10).mp3'
+    ],
+    classical: [
+        '/rpgadventuremusic/classical.mp3',
+        '/rpgadventuremusic/classical (2).mp3',
+        '/rpgadventuremusic/classical (3).mp3'
+    ],
+    country: [
+        '/rpgadventuremusic/country.mp3',
+        '/rpgadventuremusic/country (1).mp3',
+        '/rpgadventuremusic/country (2).mp3',
+        '/rpgadventuremusic/country (3).mp3',
+        '/rpgadventuremusic/country (4).mp3',
+        '/rpgadventuremusic/country (5).mp3'
+    ],
+    modern: [
+        '/rpgadventuremusic/modern (1).mp3',
+        '/rpgadventuremusic/modern (2).mp3'
+    ],
+    battle: ['/Clash of Steel.mp3'] // Keep existing battle music
 };
+
+// Map location types to genres
+const locationToGenre = {
+    'tavern': 'medieval',
+    'village': 'medieval',
+    'town': 'medieval',
+    'castle': 'medieval',
+    'ancient_ruins': 'medieval',
+    'forest': 'medieval',
+    'farm': 'country',
+    'cabin': 'country',
+    'mountain': 'classical',
+    'cave': 'classical',
+    'dungeon': 'classical',
+    'evil_lair': 'classical',
+    'battle': 'battle',
+    'sci_fi_base': 'scifi',
+    'cyber_city': 'scifi',
+    'club': 'modern',
+    'shop': 'modern'
+};
+
 let musicFadeInterval;
+let currentGenre = null;
+let currentTrackIndex = -1;
+
+// Get random track from genre, avoiding current track if possible
+function getRandomTrackFromGenre(genre) {
+    const tracks = genreTracks[genre];
+    if (!tracks || tracks.length === 0) return null;
+
+    // If only one track, return it
+    if (tracks.length === 1) return tracks[0];
+
+    // Pick random track different from current if possible
+    let randomIndex;
+    do {
+        randomIndex = Math.floor(Math.random() * tracks.length);
+    } while (randomIndex === currentTrackIndex && tracks.length > 1);
+
+    currentTrackIndex = randomIndex;
+    return tracks[randomIndex];
+}
 
 async function changeBackgroundMusic(locationType) {
-    if (!locationType || locationType === currentMusicType || !musicMap[locationType]) return;
+    const genre = locationToGenre[locationType];
+    if (!genre || !genreTracks[genre]) return;
+
     const wasPlaying = !backgroundMusic.paused;
+
+    // If same genre, don't change (let current track finish and auto-select next)
+    if (genre === currentGenre && wasPlaying) return;
+
+    currentGenre = genre;
     currentMusicType = locationType;
-    const newMusicSrc = musicMap[locationType];
+    const newMusicSrc = getRandomTrackFromGenre(genre);
+
+    if (!newMusicSrc) return;
+
     if (musicFadeInterval) clearInterval(musicFadeInterval);
+
     if (wasPlaying) {
         musicFadeInterval = setInterval(() => {
             if (backgroundMusic.volume > 0.05) {
@@ -596,6 +685,19 @@ async function changeBackgroundMusic(locationType) {
         // Do not play when muted/paused
     }
 }
+
+// Auto-play next random track from same genre when current track ends
+backgroundMusic.addEventListener('ended', () => {
+    if (currentGenre && !backgroundMusic.paused) {
+        const nextTrack = getRandomTrackFromGenre(currentGenre);
+        if (nextTrack) {
+            backgroundMusic.src = nextTrack;
+            backgroundMusic.load();
+            backgroundMusic.volume = 0.3;
+            backgroundMusic.play().catch(err => console.error("Could not play next track:", err));
+        }
+    }
+});
 
 // Generate location image
 async function generateLocationImage(prompt) {
