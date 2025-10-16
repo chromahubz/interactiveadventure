@@ -2,13 +2,35 @@
 // Replace these with your actual API keys
 export const API_CONFIG = {
     GEMINI_API_KEY: 'AIzaSyD_qu413X6P6rfZwzN_lpG1QREQB9j6V5Y', // Get from: https://aistudio.google.com/app/apikey
+    GROQ_API_KEY: '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', // Get from: https://console.groq.com/
     FIREWORKS_API_KEY: 'fw_3ZQ21zN3zE1WkiNVRfRnM1CE', // Get from: https://fireworks.ai/
     ELEVENLABS_API_KEY: 'd8b5c8c5fb4115bd4dbf6b5fb2cd73a5' // Get from: https://elevenlabs.io/
+};
+
+// LLM Model tiers - user-friendly names
+export const MODEL_TIERS = {
+    BEST: {
+        provider: 'gemini',
+        model: 'gemini-2.0-flash-exp',
+        displayName: 'Best'
+    },
+    STANDARD: {
+        provider: 'groq',
+        model: 'llama-3.3-70b-versatile',
+        displayName: 'Standard'
+    },
+    BASIC: {
+        provider: 'groq',
+        model: 'llama-3.1-8b-instant',
+        displayName: 'Basic'
+    }
 };
 
 // Models
 export const MODELS = {
     GEMINI: 'gemini-2.0-flash-exp',
+    GROQ_BEST: 'llama-3.3-70b-versatile',
+    GROQ_FAST: 'llama-3.1-8b-instant',
     FIREWORKS_IMAGE: 'flux-1-schnell-fp8',
     ELEVENLABS_MODEL: 'eleven_turbo_v2_5'
 };

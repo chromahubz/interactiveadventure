@@ -1,0 +1,15 @@
+{
+  "name": "interactiveadventure",
+  "version": "1.0.0",
+  "description": "Interactive RPG Adventure Game with AI",
+  "main": "videoServer.js",
+  "scripts": {
+    "server": "node videoServer.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "ffmpeg-static": "^5.2.0"
+  }
+}

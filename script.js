@@ -1251,8 +1251,9 @@ function addMessage(text, sender) {
         messageElement.innerHTML = messageText;
 
         // Add audio button for AI messages
+        let audioBtn = null;
         if (ttsNarrative && ttsEnabled) {
-            const audioBtn = document.createElement('button');
+            audioBtn = document.createElement('button');
             audioBtn.className = 'message-audio-btn';
             audioBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
             audioBtn.title = 'Play/Stop Audio';
@@ -1263,8 +1264,13 @@ function addMessage(text, sender) {
             messageElement.appendChild(audioBtn);
         }
 
-        // Don't auto-play anymore - let user click button per message
-        // if (!suppressTTS && ttsNarrative && ttsEnabled) enqueueTTS(ttsNarrative);
+        // Auto-play TTS - button allows stopping
+        if (!suppressTTS && ttsNarrative && ttsEnabled && audioBtn) {
+            // Auto-play after a short delay to ensure button is rendered
+            setTimeout(() => {
+                toggleMessageAudio(messageElement, ttsNarrative, audioBtn);
+            }, 100);
+        }
     } else {
         messageElement.textContent = text;
     }
@@ -1569,7 +1575,7 @@ async function addItemToInventory(name, quantity, description, iconPrompt) {
         let itemIconUrl = "https://img.icons8.com/dotty/80/000000/box-important.png"; // Fallback icon
         try {
             const result = await websim.imageGen({
-                prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, transparent background`,
+                prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
                 transparent: true,
                 aspect_ratio: "1:1"
             });
@@ -1630,7 +1636,7 @@ async function addWeapon(name, stats, description, iconPrompt) {
     let weaponIconUrl = "https://img.icons8.com/dotty/80/000000/sword.png"; // Fallback icon
     try {
         const result = await websim.imageGen({
-            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, transparent background`,
+            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
             transparent: true,
             aspect_ratio: "1:1"
         });
@@ -1693,7 +1699,7 @@ async function addArmor(name, stats, description, iconPrompt) {
     let armorIconUrl = "https://img.icons8.com/dotty/80/000000/body-armor.png";
     try {
         const result = await websim.imageGen({
-            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, transparent background`,
+            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
             transparent: true,
             aspect_ratio: "1:1"
         });
@@ -1749,7 +1755,7 @@ async function addRing(name, stats, description, iconPrompt) {
     let ringIconUrl = "https://img.icons8.com/dotty/80/000000/ring.png";
     try {
         const result = await websim.imageGen({
-            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, transparent background`,
+            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
             transparent: true,
             aspect_ratio: "1:1"
         });
@@ -2610,7 +2616,7 @@ fileLoader.addEventListener('change', async (event) => {
 
                 try {
                     const result = await websim.imageGen({
-                        prompt: `${encounter.icon_prompt}, ${getStyleTag('icon')}, simple, transparent background`,
+                        prompt: `${encounter.icon_prompt}, ${getStyleTag('icon')}, simple, white background`,
                         transparent: true,
                         aspect_ratio: "1:1"
                     });
@@ -3252,7 +3258,7 @@ async function addEncounter(name, hp, iconPrompt) {
 
     try {
         const result = await websim.imageGen({
-            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, transparent background`,
+            prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
             transparent: true,
             aspect_ratio: "1:1"
         });
