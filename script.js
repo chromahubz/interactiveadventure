@@ -2941,23 +2941,29 @@ function handleEditMessage() {
 async function handleRegenerateMessage() {
     if (activeContextMenuMessageIndex < 1) return;
 
+    console.log('🔄 Regenerate button clicked, activeContextMenuMessageIndex:', activeContextMenuMessageIndex);
+
     // The user prompt is the one right before the AI message
     const userPromptIndex = activeContextMenuMessageIndex - 1;
     const userPromptMessage = conversationHistory[userPromptIndex];
-    
+
+    console.log('🔄 User prompt to regenerate:', userPromptMessage.content.substring(0, 100));
+
     // Remove the old user prompt and AI response from the history for regeneration
     const previousHistory = conversationHistory.slice(0, userPromptIndex);
     // Remove the old AI message and its user prompt from the DOM
     const messagesToRemove = Array.from(messagesContainer.querySelectorAll(`[data-history-index]`)).filter(el => parseInt(el.dataset.historyIndex, 10) >= userPromptIndex);
     messagesToRemove.forEach(el => el.remove());
-    if (activeContextMenuMessage.previousElementSibling.classList.contains('user-message')) {
+    if (activeContextMenuMessage.previousElementSibling && activeContextMenuMessage.previousElementSibling.classList.contains('user-message')) {
         activeContextMenuMessage.previousElementSibling.remove();
     }
     activeContextMenuMessage.remove();
 
     // Restore the history and re-send the prompt
     conversationHistory = previousHistory;
-    
+
+    console.log('🔄 Calling AI to regenerate response...');
+
     // Check if it's a combat move that needs a dice roll
     const lowerCaseContent = userPromptMessage.content.toLowerCase();
     const isAttack = activeEncounters.length > 0 && (lowerCaseContent.includes('attack') || lowerCaseContent.includes('use my'));
@@ -2966,6 +2972,8 @@ async function handleRegenerateMessage() {
     } else {
         await getAIResponse(userPromptMessage.content);
     }
+
+    console.log('🔄 Regeneration complete!');
 
     // Hide the context menu
     messageContextMenu.classList.add('hidden');
@@ -3300,6 +3308,10 @@ const imageStyleSelect = document.getElementById('image-style-select');
 const imageStyleSelectInGame = document.getElementById('image-style-select-in-game');
 let imageStyle = 'pixel';
 
+// New: Voice select
+const voiceSelect = document.getElementById('voice-select');
+let selectedVoice = 'BRIAN'; // Default voice
+
 // Track generated assets for export
 const generatedImages = []; // { url, ts, index }
 const ttsAudioUrls = [];    // { url, ts, index }
@@ -3312,6 +3324,11 @@ imageStyleSelectInGame?.addEventListener('change', () => {
 imageStyleSelect?.addEventListener('change', () => {
     imageStyle = imageStyleSelect.value;
     if (imageStyleSelectInGame) imageStyleSelectInGame.value = imageStyle;
+});
+
+// Voice select event listener
+voiceSelect?.addEventListener('change', () => {
+    selectedVoice = voiceSelect.value;
 });
 
 // Unified style helper for scenes, icons, and avatars
@@ -3350,7 +3367,7 @@ async function processTTS() {
     isSpeaking = true;
     const text = ttsQueue.shift();
     try {
-        const result = await websim.textToSpeech({ text, voice: "en-male" });
+        const result = await websim.textToSpeech({ text, voice: selectedVoice });
         // Skip if TTS not available (returns null)
         if (!result || !result.url) {
             processTTS();
