@@ -590,8 +590,7 @@ const genreTracks = {
     modern: [
         '/rpgadventuremusic/modern (1).mp3',
         '/rpgadventuremusic/modern (2).mp3'
-    ],
-    battle: ['/Clash of Steel.mp3'] // Keep existing battle music
+    ]
 };
 
 // Map location types to genres
@@ -608,7 +607,7 @@ const locationToGenre = {
     'cave': 'classical',
     'dungeon': 'classical',
     'evil_lair': 'classical',
-    'battle': 'battle',
+    'battle': 'classical', // Use classical for battle - dramatic and intense
     'sci_fi_base': 'scifi',
     'cyber_city': 'scifi',
     'club': 'modern',
@@ -754,7 +753,7 @@ window.addEventListener('load', async () => {
     // Music does not autoplay until game starts
     backgroundMusic.volume = 0.3; // Set default volume, but keep paused
     musicButton.innerHTML = `<i class="fas fa-volume-mute"></i>`;
-    ttsButton.innerHTML = `<i class="fas fa-headphones"></i> Voice On`;
+    ttsButton.innerHTML = `<i class="fas fa-microphone"></i>`;
 
     updateControlButtons();
 });
@@ -2234,6 +2233,8 @@ confirmNoBtn.addEventListener('click', () => confirmModal.classList.remove('acti
 confirmCloseBtn.addEventListener('click', () => confirmModal.classList.remove('active'));
 
 confirmYesBtn.addEventListener('click', () => {
+    console.error('⚠️⚠️⚠️ CONFIRM YES BUTTON CLICKED - About to reset game!');
+    console.error('⚠️ Stack trace:', new Error().stack);
     confirmModal.classList.remove('active');
     startNewGameReset();
 });
@@ -2313,8 +2314,14 @@ startGameButton.addEventListener('click', async () => {
     startScreenContainer.style.display = 'none';
     appContainer.style.display = 'flex';
 
-    // Start background music
+    // Start background music with lower volume
     if (!musicStarted) {
+        // Set initial music track for medieval genre (default)
+        currentGenre = 'medieval';
+        backgroundMusic.src = getRandomTrackFromGenre('medieval');
+        backgroundMusic.volume = 0.15; // Lower volume (was 0.3)
+        backgroundMusic.load();
+
         const playPromise = backgroundMusic.play();
         if (playPromise !== undefined) {
             playPromise.then(() => {
@@ -3330,11 +3337,15 @@ async function executeWithDiceRoll(prompt) {
 
 // New: extracted reset logic for starting a new game
 function startNewGameReset() {
+    console.error('⚠️⚠️⚠️ startNewGameReset() CALLED - CLEARING ALL GAME STATE!');
+    console.error('⚠️ Stack trace:', new Error().stack);
+
     // Reset to start menu
     appContainer.style.display = 'none';
     startScreenContainer.style.display = 'flex';
 
     // Reset game state variables
+    console.error('⚠️ Clearing conversation history from:', conversationHistory.length, 'messages');
     conversationHistory = [];
     partyMembers = [];
     inventoryItems = [];
@@ -3392,13 +3403,12 @@ function startNewGameReset() {
     backgroundMusic.currentTime = 0;
     musicStarted = false;
     musicButton.innerHTML = `<i class="fas fa-volume-mute"></i>`;
-    ttsButton.innerHTML = `<i class="fas fa-headphones"></i>`;
+    ttsButton.innerHTML = `<i class="fas fa-microphone"></i>`;
     ttsEnabled = true;
     ttsQueue = [];
     isSpeaking = false;
     currentTtsAudio = null;
     suppressTTS = false;
-    ttsButton.innerHTML = `<i class="fas fa-headphones"></i> Voice On`;
 
     // Stop autoplay if it's running
     if (isAutoPlaying) toggleAutoplay();
@@ -3430,7 +3440,10 @@ imageStyleSelect?.addEventListener('change', () => {
 
 // Voice select event listener
 voiceSelect?.addEventListener('change', () => {
+    console.log('🎤 Voice changed to:', voiceSelect.value);
+    console.log('🎤 Conversation history length:', conversationHistory.length);
     selectedVoice = voiceSelect.value;
+    console.log('🎤 Voice change complete - history still intact:', conversationHistory.length);
 });
 
 // Unified style helper for scenes, icons, and avatars
@@ -3510,7 +3523,9 @@ async function processTTS() {
 // New: Voice toggle button
 ttsButton.addEventListener('click', () => {
     ttsEnabled = !ttsEnabled;
-    ttsButton.innerHTML = ttsEnabled ? `<i class="fas fa-headphones"></i> Voice On` : `<i class="fas fa-headphones-slash"></i> Voice Off`;
+    ttsButton.innerHTML = ttsEnabled
+        ? `<i class="fas fa-microphone"></i>`
+        : `<i class="fas fa-microphone-slash"></i>`;
     if (!ttsEnabled && currentTtsAudio) { currentTtsAudio.pause(); currentTtsAudio = null; ttsQueue = []; isSpeaking = false; }
 });
 
@@ -3521,7 +3536,7 @@ voiceReadButton.addEventListener('click', async () => {
     let text = '';
     try { text = JSON.parse(entry.content)?.narrative || ''; } catch { text = entry.content || ''; }
     if (!text) return;
-    if (!ttsEnabled) { ttsEnabled = true; ttsButton.innerHTML = `<i class="fas fa-headphones"></i> Voice On`; }
+    if (!ttsEnabled) { ttsEnabled = true; ttsButton.innerHTML = `<i class="fas fa-headphones"></i>`; }
     enqueueTTS(text);
     messageContextMenu.classList.add('hidden');
 });

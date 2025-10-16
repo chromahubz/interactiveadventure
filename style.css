@@ -1413,6 +1413,11 @@ body {
 
 .control-button i {
     font-size: 0.9em;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #suggestion-buttons-container {

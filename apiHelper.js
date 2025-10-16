@@ -8,32 +8,50 @@ export const gemini = {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.GEMINI}:generateContent?key=${API_CONFIG.GEMINI_API_KEY}`;
 
         // Convert messages to Gemini format
-        // If messages has system role, we need to include it in the prompt
-        let prompt = '';
-        if (Array.isArray(messages)) {
-            const systemMsg = messages.find(m => m.role === 'system');
-            const userMsg = messages.find(m => m.role === 'user');
+        // Gemini uses 'user' and 'model' roles, and needs full conversation history
+        let contents = [];
+        let systemInstruction = '';
 
-            if (systemMsg && userMsg) {
-                prompt = `${systemMsg.content}\n\nUser: ${userMsg.content}`;
-            } else {
-                prompt = messages.map(m => m.content || m).join('\n');
+        if (Array.isArray(messages)) {
+            // Extract system message as system instruction
+            const systemMsg = messages.find(m => m.role === 'system');
+            if (systemMsg) {
+                systemInstruction = systemMsg.content;
+            }
+
+            // Convert conversation messages to Gemini format
+            for (const msg of messages) {
+                if (msg.role === 'system') continue; // Skip system, we handle it separately
+
+                // Map roles: 'user' stays 'user', 'assistant' becomes 'model'
+                const role = msg.role === 'assistant' ? 'model' : 'user';
+
+                contents.push({
+                    role: role,
+                    parts: [{ text: msg.content }]
+                });
+            }
+
+            // If we have system instruction, prepend it to first user message
+            if (systemInstruction && contents.length > 0 && contents[0].role === 'user') {
+                contents[0].parts[0].text = `${systemInstruction}\n\n${contents[0].parts[0].text}`;
             }
         } else {
-            prompt = messages;
+            // Single string message
+            contents = [{
+                role: 'user',
+                parts: [{ text: messages }]
+            }];
         }
 
         // Add JSON instruction if json option is enabled
-        if (options.json) {
-            prompt += '\n\nRespond with valid JSON only, no additional text.';
+        if (options.json && contents.length > 0) {
+            const lastContent = contents[contents.length - 1];
+            lastContent.parts[0].text += '\n\nRespond with valid JSON only, no additional text.';
         }
 
         const requestBody = {
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }],
+            contents: contents,
             generationConfig: {
                 temperature: options.temperature ?? 0.7,
                 maxOutputTokens: options.maxTokens ?? 8000,
@@ -107,7 +125,7 @@ export const gemini = {
 
 // Fireworks AI wrapper - for image generation
 export const fireworks = {
-    async imageGen({ prompt, width = 1024, height = 1024, seed }) {
+    async imageGen({ prompt, width = 1280, height = 720, seed }) {
         const url = 'https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/flux-1-schnell-fp8/text_to_image';
 
         // Determine aspect ratio from dimensions
