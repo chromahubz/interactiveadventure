@@ -1134,7 +1134,7 @@ async function getAIResponse(userPrompt) {
         if (newRings && Array.isArray(newRings) && newRings.length > 0) {
             for (const ring of newRings) {
                 if (ring.name && ring.stats && ring.icon_prompt && ring.description) {
-                    await addRing(ring.name, ring.stats, ring.description, ring.iconPrompt);
+                    await addRing(ring.name, ring.stats, ring.description, ring.icon_prompt);
                 } else {
                     console.warn("Received incomplete ring data:", ring);
                 }
@@ -1825,14 +1825,21 @@ async function addArmor(name, stats, description, iconPrompt) {
     const li = document.createElement('li');
     li.classList.add('armor');
     li.id = uniqueId;
-    li.addEventListener('click', () => equipItem(uniqueId, 'armor'));
-    li.addEventListener('click', () => showDetailsModal({
-        name: newArmor.name,
-        description: newArmor.description,
-        iconUrl: newArmor.iconUrl,
-        type: "Armor",
-        info: { header: 'Stats', value: newArmor.stats }
-    }));
+
+    // Click to view details, double-click to equip
+    li.addEventListener('click', () => {
+        showDetailsModal({
+            name: newArmor.name,
+            description: newArmor.description,
+            iconUrl: newArmor.iconUrl,
+            type: "Armor",
+            info: { header: 'Stats', value: newArmor.stats }
+        });
+    });
+    li.addEventListener('dblclick', () => {
+        equipItem(uniqueId, 'armor');
+        hideDetailsModal();
+    });
 
     const img = document.createElement('img');
     img.alt = name;
@@ -1865,11 +1872,6 @@ async function addArmor(name, stats, description, iconPrompt) {
     li.appendChild(armorInfo);
     armorList.appendChild(li);
     armors.push(newArmor);
-
-    // Add a separate button or interaction for equipping if desired
-    // For now, let's add an equip button to the modal, or make the whole list item an equip button still
-    // Re-adding the original equip functionality
-    li.addEventListener('dblclick', () => equipItem(uniqueId, 'armor'));
 }
 
 // --- Ring Management ---
@@ -1880,14 +1882,21 @@ async function addRing(name, stats, description, iconPrompt) {
     const li = document.createElement('li');
     li.classList.add('ring');
     li.id = uniqueId;
-    li.addEventListener('click', () => equipItem(uniqueId, 'ring'));
-    li.addEventListener('click', () => showDetailsModal({
-        name: newRing.name,
-        description: newRing.description,
-        iconUrl: newRing.iconUrl,
-        type: "Ring",
-        info: { header: 'Stats', value: newRing.stats }
-    }));
+
+    // Click to view details, double-click to equip
+    li.addEventListener('click', () => {
+        showDetailsModal({
+            name: newRing.name,
+            description: newRing.description,
+            iconUrl: newRing.iconUrl,
+            type: "Ring",
+            info: { header: 'Stats', value: newRing.stats }
+        });
+    });
+    li.addEventListener('dblclick', () => {
+        equipItem(uniqueId, 'ring');
+        hideDetailsModal();
+    });
 
     const img = document.createElement('img');
     img.alt = name;
@@ -1920,11 +1929,6 @@ async function addRing(name, stats, description, iconPrompt) {
     li.appendChild(ringInfo);
     ringList.appendChild(li);
     rings.push(newRing);
-
-    // Add a separate button or interaction for equipping if desired
-    // For now, let's add an equip button to the modal, or make the whole list item an equip button still
-    // Re-adding the original equip functionality
-    li.addEventListener('dblclick', () => equipItem(uniqueId, 'ring'));
 }
 
 // --- Party Management ---
@@ -3979,13 +3983,6 @@ function initializeButtonListeners() {
         console.error('❌ FATAL ERROR in initializeButtonListeners():', error);
     }
 }
-
-// Legacy code (kept for backwards compatibility if initializeButtonListeners fails)
-expandImageButton?.addEventListener('click', () => {
-    console.log('🖼️ Fullscreen button clicked! (legacy listener)');
-});
-fullscreenOverlay?.addEventListener('click', () => fullscreenOverlay.classList.remove('active'));
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') fullscreenOverlay.classList.remove('active'); });
 
 /* Export media as ZIP */
 async function exportMediaZip() {
