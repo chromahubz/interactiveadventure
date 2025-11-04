@@ -81,6 +81,20 @@ document.addEventListener('click', (e) => {
         }
     }
 
+    // Export Video (WebM) button
+    if (e.target.id === 'export-video-button' || e.target.closest('#export-video-button')) {
+        console.log('🎬 Export Video button clicked (emergency handler)');
+
+        // Trigger the main video export (will be defined later in script)
+        setTimeout(() => {
+            const btn = document.getElementById('export-video-button');
+            if (btn && !btn.disabled) {
+                console.log('⚠️ EMERGENCY: Triggering video export via emergency handler');
+                btn.click(); // Re-trigger to execute the actual handler
+            }
+        }, 50);
+    }
+
     // Close export modal button
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
         console.log('❌ Export modal close clicked');
@@ -4039,7 +4053,180 @@ exportFilesButton?.addEventListener('click', async () => {
     await exportMediaZip();
 });
 
-// Export video
+// CLIENT-SIDE VIDEO EXPORT using Canvas + MediaRecorder (WebM format)
+async function generateVideoClientSide(scenes, includeSubtitles) {
+    console.log('🎬 Starting client-side video generation...', { scenes: scenes.length, subtitles: includeSubtitles });
+
+    // Create offscreen canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+
+    // Setup MediaRecorder
+    const stream = canvas.captureStream(30); // 30 FPS
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+
+    console.log('📹 Using MIME type:', mimeType);
+
+    const recorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: 5000000 // 5 Mbps
+    });
+
+    const chunks = [];
+    recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+            chunks.push(e.data);
+            console.log('📦 Chunk received:', e.data.size, 'bytes');
+        }
+    };
+
+    // Start recording
+    recorder.start(100); // Fire dataavailable every 100ms
+    console.log('🔴 Recording started');
+
+    // Render each scene
+    for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        console.log(`🎬 Rendering scene ${i + 1}/${scenes.length}`);
+
+        // Clear canvas to black
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, 1280, 720);
+
+        // Load and draw image
+        try {
+            const img = await loadImageFromUrl(scene.imageUrl);
+
+            // Calculate aspect ratio fit
+            const imgAspect = img.width / img.height;
+            const canvasAspect = 1280 / 720;
+
+            let drawWidth, drawHeight, drawX, drawY;
+
+            if (imgAspect > canvasAspect) {
+                // Image is wider - fit to width
+                drawWidth = 1280;
+                drawHeight = 1280 / imgAspect;
+                drawX = 0;
+                drawY = (720 - drawHeight) / 2;
+            } else {
+                // Image is taller - fit to height
+                drawHeight = 720;
+                drawWidth = 720 * imgAspect;
+                drawX = (1280 - drawWidth) / 2;
+                drawY = 0;
+            }
+
+            ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+        } catch (error) {
+            console.error('Error loading scene image:', error);
+            ctx.fillStyle = 'white';
+            ctx.font = '32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Image loading failed', 640, 360);
+        }
+
+        // Add subtitles if enabled
+        if (includeSubtitles && scene.text) {
+            // Wrap text to multiple lines
+            const maxWidth = 1100;
+            const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+
+            // Draw subtitle background
+            const lineHeight = 35;
+            const totalHeight = lines.length * lineHeight + 20;
+            const bgY = 720 - totalHeight - 40;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(90, bgY, 1100, totalHeight);
+
+            // Draw subtitle text
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 3;
+            ctx.font = '28px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            lines.forEach((line, index) => {
+                const y = bgY + 10 + (index * lineHeight);
+                ctx.strokeText(line, 640, y);
+                ctx.fillText(line, 640, y);
+            });
+        }
+
+        // Hold scene for duration (default 3 seconds if no audio)
+        const duration = scene.audioDuration || 3000;
+        await sleep(duration);
+    }
+
+    // Stop recording
+    console.log('⏹️ Stopping recording...');
+    recorder.stop();
+
+    // Wait for final chunks and create blob
+    return new Promise((resolve, reject) => {
+        recorder.onstop = () => {
+            console.log('✅ Recording stopped, creating blob...');
+            const blob = new Blob(chunks, { type: mimeType });
+            console.log('📦 Video blob created:', blob.size, 'bytes');
+            resolve(blob);
+        };
+
+        recorder.onerror = (error) => {
+            console.error('❌ Recording error:', error);
+            reject(error);
+        };
+    });
+}
+
+// Helper function to load image from URL
+function loadImageFromUrl(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+    });
+}
+
+// Helper function to wrap text to multiple lines
+function wrapText(ctx, text, maxWidth, font) {
+    ctx.font = font;
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+
+    for (const word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        const metrics = ctx.measureText(testLine);
+
+        if (metrics.width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+
+    return lines;
+}
+
+// Helper function to sleep/wait
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Export video button handler
 exportVideoButton?.addEventListener('click', async () => {
     const includeSubtitles = exportSubtitlesCheckbox.checked;
     exportVideoButton.disabled = true;
@@ -4047,21 +4234,11 @@ exportVideoButton?.addEventListener('click', async () => {
     exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
 
     try {
-        // Prepare scenes data - match images with audio and text
-        const scenes = [];
-        const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length, narrativeTexts.length);
+        console.log('🎬 Video export started');
 
-        // Helper function to convert blob URL to base64 data URL
-        async function blobUrlToBase64(blobUrl) {
-            const response = await fetch(blobUrl);
-            const blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        }
+        // Prepare scenes data
+        const scenes = [];
+        const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length);
 
         for (let i = 0; i < maxScenes; i++) {
             const scene = {};
@@ -4069,35 +4246,12 @@ exportVideoButton?.addEventListener('click', async () => {
             // Get image (use last available if not enough)
             if (generatedImages.length > 0) {
                 const imgIndex = Math.min(i, generatedImages.length - 1);
-                let imageUrl = generatedImages[imgIndex].url;
-
-                // Convert blob URL to base64 if needed
-                if (imageUrl.startsWith('blob:')) {
-                    imageUrl = await blobUrlToBase64(imageUrl);
-                }
-                scene.image = imageUrl;
+                scene.imageUrl = generatedImages[imgIndex].url;
             }
 
-            // Get audio (optional)
-            if (ttsAudioUrls.length > i) {
-                let audioUrl = ttsAudioUrls[i].url;
-
-                // Convert blob URL to base64 if needed
-                if (audioUrl.startsWith('blob:')) {
-                    audioUrl = await blobUrlToBase64(audioUrl);
-                }
-                scene.audio = audioUrl;
-            }
-
-            // Get SFX audio (optional)
-            if (sfxAudioUrls.length > i) {
-                let sfxUrl = sfxAudioUrls[i].url;
-
-                // Convert blob URL to base64 if needed
-                if (sfxUrl.startsWith('blob:')) {
-                    sfxUrl = await blobUrlToBase64(sfxUrl);
-                }
-                scene.sfx = sfxUrl;
+            // Get audio duration if available
+            if (ttsAudioUrls.length > i && ttsAudioUrls[i].duration) {
+                scene.audioDuration = ttsAudioUrls[i].duration;
             }
 
             // Get text (optional, for subtitles)
@@ -4106,51 +4260,43 @@ exportVideoButton?.addEventListener('click', async () => {
             }
 
             // Skip scene if no image
-            if (!scene.image) continue;
+            if (!scene.imageUrl) continue;
 
             scenes.push(scene);
         }
 
         if (scenes.length === 0) {
-            throw new Error('No scenes to export');
+            throw new Error('No scenes to export. Play the game to generate images first!');
         }
 
-        // Call video server
-        const response = await fetch('http://localhost:3100/generate-video', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                scenes: scenes,
-                includeSubtitles: includeSubtitles
-            })
-        });
+        console.log('📊 Prepared', scenes.length, 'scenes');
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Video generation failed');
-        }
-
-        const result = await response.json();
+        // Generate video client-side
+        const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
 
         // Download the video
-        const videoUrl = `http://localhost:3100${result.videoUrl}`;
+        const filename = `adventure-${Date.now()}.webm`;
+        const url = URL.createObjectURL(videoBlob);
         const a = document.createElement('a');
-        a.href = videoUrl;
-        a.download = result.filename;
+        a.href = url;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
 
-        exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully!';
+        // Cleanup
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+        exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (WebM format)';
+        console.log('✅ Video export complete:', filename);
+
         setTimeout(() => {
             exportModal.style.display = 'none';
-        }, 2000);
+        }, 3000);
 
     } catch (error) {
-        console.error('Video export error:', error);
-        exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}<br><small>Make sure the video server is running (npm run server)</small>`;
+        console.error('❌ Video export error:', error);
+        exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}`;
     } finally {
         exportVideoButton.disabled = false;
         exportFilesButton.disabled = false;
