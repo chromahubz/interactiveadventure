@@ -1,6 +1,10 @@
-import { API_CONFIG, MODELS, VOICES } from './config.js';
+import { API_CONFIG, MODELS, VOICES, MODEL_TIERS } from './config.js';
 
-console.log('🚀 API Helper loaded!', { GEMINI_API_KEY: API_CONFIG.GEMINI_API_KEY.substring(0, 10) + '...', FIREWORKS_API_KEY: API_CONFIG.FIREWORKS_API_KEY.substring(0, 10) + '...' });
+console.log('🚀 API Helper loaded!', {
+    GEMINI_API_KEY: API_CONFIG.GEMINI_API_KEY.substring(0, 10) + '...',
+    GROQ_API_KEY: API_CONFIG.GROQ_API_KEY.substring(0, 10) + '... (LLM + TTS)',
+    FIREWORKS_API_KEY: API_CONFIG.FIREWORKS_API_KEY.substring(0, 10) + '...'
+});
 
 // Gemini API wrapper - for text generation
 export const gemini = {
@@ -123,6 +127,96 @@ export const gemini = {
     }
 };
 
+// Groq API wrapper - for text generation (OpenAI-compatible)
+export const groq = {
+    async chat(messages, options = {}) {
+        const url = 'https://api.groq.com/openai/v1/chat/completions';
+
+        // Groq uses OpenAI-compatible format with system, user, assistant roles
+        const requestBody = {
+            model: options.model || MODELS.GROQ_BEST,
+            messages: messages,
+            temperature: options.temperature ?? 0.7,
+            max_tokens: options.maxTokens ?? 8000,
+            top_p: 1,
+            stream: false
+        };
+
+        // Add JSON response format if requested
+        if (options.json) {
+            requestBody.response_format = { type: 'json_object' };
+            // Ensure the last message asks for JSON
+            if (Array.isArray(messages) && messages.length > 0) {
+                const lastMsg = messages[messages.length - 1];
+                if (!lastMsg.content.includes('JSON')) {
+                    lastMsg.content += '\n\nRespond with valid JSON only.';
+                }
+            }
+        }
+
+        try {
+            console.log('Sending to Groq:', { url, model: requestBody.model });
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_CONFIG.GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                console.error('Groq API HTTP error:', response.status, error);
+                throw new Error(`Groq API error: ${response.status} - ${error}`);
+            }
+
+            const data = await response.json();
+            console.log('Groq raw response:', data);
+
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                console.error('Invalid Groq response structure:', data);
+                throw new Error('Invalid response from Groq API');
+            }
+
+            return {
+                choices: [{
+                    message: {
+                        content: data.choices[0].message.content
+                    }
+                }]
+            };
+        } catch (error) {
+            console.error('Groq API Error:', error);
+            throw error;
+        }
+    },
+
+    // Simplified interface matching websim API
+    completions: {
+        async create({ messages, model, temperature, max_tokens, json }) {
+            try {
+                const result = await groq.chat(messages, {
+                    model,
+                    temperature,
+                    maxTokens: max_tokens,
+                    json: json
+                });
+                console.log('Groq API result:', result);
+                // Return in a format that works with both .content and .choices[0].message.content
+                return {
+                    content: result.choices[0].message.content,
+                    choices: result.choices
+                };
+            } catch (error) {
+                console.error('Error in Groq completions.create:', error);
+                throw error;
+            }
+        }
+    }
+};
+
 // Fireworks AI wrapper - for image generation
 export const fireworks = {
     async imageGen({ prompt, width = 1280, height = 720, seed }) {
@@ -182,20 +276,69 @@ export const fireworks = {
     }
 };
 
+// Store selected model tier (default to BEST)
+let selectedModelTier = 'BEST';
+
+// Function to set the model tier
+export function setModelTier(tier) {
+    if (MODEL_TIERS[tier]) {
+        selectedModelTier = tier;
+        console.log(`Model tier changed to: ${tier} (${MODEL_TIERS[tier].displayName})`);
+        // Save to localStorage
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('selectedModelTier', tier);
+        }
+    } else {
+        console.error(`Invalid model tier: ${tier}`);
+    }
+}
+
+// Function to get current model tier
+export function getModelTier() {
+    // Load from localStorage if available
+    if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('selectedModelTier');
+        if (saved && MODEL_TIERS[saved]) {
+            selectedModelTier = saved;
+        }
+    }
+    return selectedModelTier;
+}
+
+// Initialize model tier from localStorage
+if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('selectedModelTier');
+    if (saved && MODEL_TIERS[saved]) {
+        selectedModelTier = saved;
+    }
+}
+
 // Create a websim-compatible object for easy replacement
 export const websim = {
     chat: {
         completions: {
-            create: async (options) => await gemini.completions.create(options)
+            create: async (options) => {
+                // Route to correct provider based on selected model tier
+                const tier = MODEL_TIERS[getModelTier()];
+                const provider = tier.provider;
+                const model = tier.model;
+
+                console.log(`Using model tier: ${tier.displayName} (${provider}/${model})`);
+
+                if (provider === 'gemini') {
+                    return await gemini.completions.create({ ...options, model });
+                } else if (provider === 'groq') {
+                    return await groq.completions.create({ ...options, model });
+                } else {
+                    throw new Error(`Unknown provider: ${provider}`);
+                }
+            }
         }
     },
     imageGen: async (options) => await fireworks.imageGen(options),
-    textToSpeech: async ({ text, voice }) => {
+    soundEffects: async ({ prompt, duration = 10 }) => {
         try {
-            // Map voice parameter to ElevenLabs voice ID (use provided voice or default to narrator)
-            let voiceId = voice ? VOICES[voice] : VOICES.NARRATOR;
-
-            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            const response = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
                 method: 'POST',
                 headers: {
                     'xi-api-key': API_CONFIG.ELEVENLABS_API_KEY,
@@ -203,49 +346,14 @@ export const websim = {
                     'Accept': 'audio/mpeg'
                 },
                 body: JSON.stringify({
-                    text: text,
-                    model_id: MODELS.ELEVENLABS_MODEL,
-                    voice_settings: {
-                        stability: 0.5,
-                        similarity_boost: 0.75
-                    }
+                    text: prompt,
+                    duration_seconds: duration,
+                    prompt_influence: 0.3
                 })
             });
 
             if (!response.ok) {
-                if (response.status === 404) {
-                    // Voice not found, try falling back to narrator
-                    console.warn(`Voice ${voiceId} not found (404), falling back to NARRATOR`);
-                    voiceId = VOICES.NARRATOR;
-
-                    const fallbackResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-                        method: 'POST',
-                        headers: {
-                            'xi-api-key': API_CONFIG.ELEVENLABS_API_KEY,
-                            'Content-Type': 'application/json',
-                            'Accept': 'audio/mpeg'
-                        },
-                        body: JSON.stringify({
-                            text: text,
-                            model_id: MODELS.ELEVENLABS_MODEL,
-                            voice_settings: {
-                                stability: 0.5,
-                                similarity_boost: 0.75
-                            }
-                        })
-                    });
-
-                    if (!fallbackResponse.ok) {
-                        console.error('ElevenLabs API error (fallback):', fallbackResponse.status);
-                        return null;
-                    }
-
-                    const blob = await fallbackResponse.blob();
-                    const url = URL.createObjectURL(blob);
-                    return { url, blob };
-                }
-
-                console.error('ElevenLabs API error:', response.status);
+                console.error('ElevenLabs SFX API error:', response.status);
                 return null;
             }
 
@@ -254,7 +362,110 @@ export const websim = {
 
             return { url, blob };
         } catch (error) {
-            console.error('ElevenLabs TTS Error:', error);
+            console.error('ElevenLabs SFX Error:', error);
+            return null;
+        }
+    },
+    generateSFXPrompt: async ({ imagePrompt }) => {
+        try {
+            // Use LLM to generate a good SFX prompt from the image description
+            const result = await websim.chat.completions.create({
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert sound designer. Given an image description, create a short, vivid sound effect prompt (1-2 sentences max) that captures the ambience and atmosphere. Focus on environmental sounds, not music. Be specific and evocative.'
+                    },
+                    {
+                        role: 'user',
+                        content: `Create a sound effect prompt for this scene: ${imagePrompt}`
+                    }
+                ],
+                temperature: 0.8,
+                max_tokens: 100
+            });
+
+            return result.content.trim();
+        } catch (error) {
+            console.error('Error generating SFX prompt:', error);
+            // Fallback to a simple extraction
+            return `ambient sounds, atmospheric`;
+        }
+    },
+    textToSpeech: async ({ text, voice }) => {
+        try {
+            // Map voice parameter to PlayAI voice name (use provided voice or default to narrator)
+            let voiceName = voice ? VOICES[voice] : VOICES.NARRATOR;
+
+            // Fallback if voice not found
+            if (!voiceName) {
+                console.warn(`Voice '${voice}' not found in VOICES, using NARRATOR default`);
+                voiceName = VOICES.NARRATOR || 'Calum'; // Double fallback
+            }
+
+            // Add -PlayAI suffix (required by Groq API)
+            if (!voiceName.endsWith('-PlayAI')) {
+                voiceName = `${voiceName}-PlayAI`;
+            }
+
+            console.log(`🎤 TTS Request: voice="${voice}" → voiceName="${voiceName}"`);
+
+            const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_CONFIG.GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'playai-tts',
+                    voice: voiceName,
+                    input: text,
+                    response_format: 'mp3'
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Groq PlayAI TTS error:', response.status, errorText);
+
+                if (response.status === 404 || response.status === 400) {
+                    // Voice not found, try falling back to default
+                    console.warn(`Voice ${voiceName} not found, falling back to Aaliyah-PlayAI`);
+                    voiceName = 'Aaliyah-PlayAI';
+
+                    const fallbackResponse = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${API_CONFIG.GROQ_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: 'playai-tts',
+                            voice: voiceName,
+                            input: text,
+                            response_format: 'mp3'
+                        })
+                    });
+
+                    if (!fallbackResponse.ok) {
+                        console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
+                        return null;
+                    }
+
+                    const blob = await fallbackResponse.blob();
+                    const url = URL.createObjectURL(blob);
+                    return { url, blob };
+                }
+
+                console.error('Groq PlayAI TTS error:', response.status);
+                return null;
+            }
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+
+            return { url, blob };
+        } catch (error) {
+            console.error('Groq PlayAI TTS Error:', error);
             return null;
         }
     }

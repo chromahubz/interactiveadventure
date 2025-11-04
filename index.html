@@ -90,6 +90,16 @@
                 </select>
             </div>
 
+            <div id="model-tier-container" class="menu-screen">
+                <h2>AI Model Quality</h2>
+                <p>Choose the AI model tier for story generation.</p>
+                <select id="model-tier-select-menu">
+                    <option value="BEST">Best (Fastest, Most Creative)</option>
+                    <option value="STANDARD">Standard (Balanced)</option>
+                    <option value="BASIC">Basic (Quick Responses)</option>
+                </select>
+            </div>
+
             <button id="start-game-button" class="control-button" disabled><i class="fas fa-play"></i> Start New Game</button>
             <button id="load-game-menu-button" class="control-button"><i class="fas fa-folder-open"></i> Load Game</button>
             <p id="mobile-info-inline" class="subtle-note">Mobile Support: This experience is mobile-friendly. For best results on phones, rotate to landscape.</p>
@@ -106,6 +116,8 @@
                 <button id="autoplay-button" class="control-button" title="Auto"><i class="fas fa-play"></i></button>
                 <button id="music-button" class="control-button" title="Music"><i class="fas fa-volume-mute"></i></button>
                 <button id="tts-button" class="control-button" title="Voice"><i class="fas fa-microphone"></i></button>
+                <!-- SFX disabled - Groq doesn't support sound effects generation -->
+                <!-- <button id="sfx-button" class="control-button" title="Sound Effects"><i class="fas fa-water"></i></button> -->
                 <button id="export-media-button" class="control-button" title="Export"><i class="fas fa-file-archive"></i></button>
                 <select id="image-style-select-in-game" class="toolbar-select" title="Image Style">
                     <option value="pixel">Pixel Art</option>
@@ -117,27 +129,39 @@
                     <option value="sketch">Pencil Sketch</option>
                 </select>
                 <select id="voice-select" class="toolbar-select" title="Voice Style">
-                    <option value="BRIAN">Brian (Narrator)</option>
-                    <option value="OLIVER">Oliver</option>
-                    <option value="CLARA">Clara</option>
-                    <option value="COLIN">Colin</option>
-                    <option value="LOU">Lou</option>
-                    <option value="EMA">Ema</option>
-                    <option value="KNIGHT">Knight</option>
-                    <option value="LOTUS">Lotus</option>
-                    <option value="RAPID">Rapid</option>
-                    <option value="DARRA">Darra</option>
-                    <option value="MARKY">Marky</option>
-                    <option value="TARA">Tara</option>
-                    <option value="DOBBIE">Dobbie</option>
-                    <option value="KATTIE">Kattie</option>
-                    <option value="CW33DO">C-W33DO</option>
-                    <option value="AMMY">Ammy</option>
-                    <option value="BENNY">Benny</option>
-                    <option value="ASHKRABA">Ashkraba</option>
-                    <option value="JOHNTRA">Johntra</option>
-                    <option value="PATRICE">Patrice</option>
-                    <option value="ALIUS">Alius</option>
+                    <option value="AALIYAH" selected>Aaliyah (Default) ♀</option>
+                    <optgroup label="Female Voices">
+                        <option value="ADELAIDE">Adelaide ♀</option>
+                        <option value="ARISTA">Arista ♀</option>
+                        <option value="CELESTE">Celeste ♀</option>
+                        <option value="CHEYENNE">Cheyenne ♀</option>
+                        <option value="DEEDEE">Deedee ♀</option>
+                        <option value="ELEANOR">Eleanor ♀</option>
+                        <option value="GAIL">Gail ♀</option>
+                        <option value="JENNIFER">Jennifer ♀</option>
+                        <option value="JUDY">Judy ♀</option>
+                        <option value="MAMAW">Mamaw ♀</option>
+                        <option value="NIA">Nia ♀</option>
+                        <option value="RUBY">Ruby ♀</option>
+                    </optgroup>
+                    <optgroup label="Male Voices">
+                        <option value="ANGELO">Angelo ♂</option>
+                        <option value="ATLAS">Atlas ♂</option>
+                        <option value="BASIL">Basil ♂</option>
+                        <option value="BRIGGS">Briggs ♂</option>
+                        <option value="CALUM">Calum (Narrator) ♂</option>
+                        <option value="CHIP">Chip ♂</option>
+                        <option value="CILLIAN">Cillian ♂</option>
+                        <option value="FRITZ">Fritz ♂</option>
+                        <option value="MASON">Mason ♂</option>
+                        <option value="MIKAIL">Mikail ♂</option>
+                        <option value="MITCH">Mitch ♂</option>
+                        <option value="THUNDER">Thunder ♂</option>
+                    </optgroup>
+                    <optgroup label="Neutral Voices">
+                        <option value="INDIGO">Indigo ⚥</option>
+                        <option value="QUINN">Quinn ⚥</option>
+                    </optgroup>
                 </select>
             </div>
             <div id="left-column-scrollable-content">
@@ -350,6 +374,26 @@
           <button id="confirm-new-yes" class="control-button"><i class="fas fa-check"></i> Yes</button>
           <button id="confirm-new-no" class="control-button"><i class="fas fa-times"></i> No</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button" id="export-modal-close">&times;</span>
+        <h2 style="margin-top:0;"><i class="fas fa-file-archive"></i> Export Adventure</h2>
+        <p>Choose how you want to export your adventure:</p>
+        <div class="modal-body">
+          <label style="display: flex; align-items: center; margin-bottom: 15px; cursor: pointer;">
+            <input type="checkbox" id="export-subtitles-checkbox" style="margin-right: 10px;">
+            <span>Include Subtitles (video only)</span>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button id="export-files-button" class="control-button"><i class="fas fa-file-archive"></i> Export Files (ZIP)</button>
+          <button id="export-video-button" class="control-button"><i class="fas fa-video"></i> Export Video (MP4)</button>
+        </div>
+        <div id="export-status" style="margin-top: 15px; text-align: center;"></div>
       </div>
     </div>
 

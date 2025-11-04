@@ -3,7 +3,19 @@ import {
     loadSound,
     playSound
 } from './audioManager.js';
-import websim from './apiHelper.js';
+import websim, { setModelTier, getModelTier } from './apiHelper.js';
+
+// Helper function to clean JSON responses (removes markdown code blocks)
+function cleanJSON(text) {
+    if (!text) return text;
+    let cleaned = text.trim();
+    // Remove markdown code blocks: ```json ... ``` or ``` ... ```
+    if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, ''); // Remove opening ```json or ```
+        cleaned = cleaned.replace(/\n?```\s*$/, ''); // Remove closing ```
+    }
+    return cleaned.trim();
+}
 
 const form = document.getElementById('message-form');
 const input = document.getElementById('message-input');
@@ -44,6 +56,7 @@ const armorList = document.getElementById('armor-list');
 const ringList = document.getElementById('ring-list');
 const equipmentList = document.getElementById('equipment-list');
 const ttsButton = document.getElementById('tts-button');
+const sfxButton = document.getElementById('sfx-button');
 const voiceReadButton = document.getElementById('voice-read-button');
 const expandImageButton = document.getElementById('expand-image-button');
 const fullscreenOverlay = document.getElementById('fullscreen-overlay');
@@ -197,6 +210,7 @@ let autoplayTimeout;
 let currentMusicType = 'tavern'; // The initial music type
 let showLoaderForNextImage = false; // Show loader only for the first scene image
 let ttsEnabled = true, ttsQueue = [], isSpeaking = false, currentTtsAudio = null, suppressTTS = false;
+let sfxEnabled = true, currentSfxAudio = null;
 
 // New: Dice Roll elements
 const diceRollOverlay = document.getElementById('dice-roll-overlay');
@@ -282,7 +296,7 @@ async function updateRaceDisplay(raceData) {
                 }],
                 json: true,
             });
-            const generatedData = JSON.parse(completion.content);
+            const generatedData = JSON.parse(cleanJSON(completion.content));
             raceData.stats = raceData.stats || generatedData.stats; // Use existing if available
             raceData.traits_description = generatedData.traits_description;
             // Add unlocked and level properties to each skill for tracking
@@ -332,7 +346,7 @@ async function updateClassDisplay(classData) {
                 }],
                 json: true,
             });
-            const generatedData = JSON.parse(completion.content);
+            const generatedData = JSON.parse(cleanJSON(completion.content));
             classData.moveset = classData.moveset || generatedData.moveset;
             classData.skill_tree = generatedData.skill_tree.map(skill => ({ ...skill, unlocked: false }));
         } catch (error) {
@@ -402,7 +416,7 @@ generateRaceButton.addEventListener('click', async () => {
             json: true,
         });
 
-        const raceData = JSON.parse(completion.content);
+        const raceData = JSON.parse(cleanJSON(completion.content));
         // Add unlocked property to each skill for tracking
         raceData.racial_skills = raceData.racial_skills.map(skill => ({ ...skill, unlocked: false }));
         
@@ -467,7 +481,7 @@ generateClassButton.addEventListener('click', async () => {
             json: true,
         });
 
-        const classData = JSON.parse(completion.content);
+        const classData = JSON.parse(cleanJSON(completion.content));
         // Add unlocked property to each skill
         classData.skill_tree = classData.skill_tree.map(skill => ({ ...skill, unlocked: false }));
         
@@ -728,6 +742,13 @@ async function generateLocationImage(prompt) {
         };
         preloader.src = result.url;
         generatedImages.push({ url: result.url, ts: Date.now(), index: generatedImages.length + 1 });
+
+        // SFX disabled - Groq doesn't support sound effects generation
+        // Stop any playing SFX when scene changes
+        if (currentSfxAudio) {
+            currentSfxAudio.pause();
+            currentSfxAudio = null;
+        }
     } catch (error) {
         console.error("Error generating image:", error);
         if (showLoaderForNextImage) { imageLoader.classList.add('hidden'); showLoaderForNextImage = false; }
@@ -759,7 +780,10 @@ window.addEventListener('load', async () => {
 });
 
 // Add global click listener for button sound effects
-document.body.addEventListener('click', (event) => {
+document.body.addEventListener('click', async (event) => {
+    // Initialize AudioContext on first user interaction (browser requirement)
+    await initAudioContext();
+
     const targetButton = event.target.closest('button');
     if (targetButton && !targetButton.disabled && targetButton !== musicButton) { // Exclude music button from general click sound
         playSound(pixelClickBuffer);
@@ -1576,7 +1600,6 @@ async function addItemToInventory(name, quantity, description, iconPrompt) {
         try {
             const result = await websim.imageGen({
                 prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
-                transparent: true,
                 aspect_ratio: "1:1"
             });
             itemIconUrl = result.url;
@@ -1637,7 +1660,6 @@ async function addWeapon(name, stats, description, iconPrompt) {
     try {
         const result = await websim.imageGen({
             prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
-            transparent: true,
             aspect_ratio: "1:1"
         });
         weaponIconUrl = result.url;
@@ -1700,7 +1722,6 @@ async function addArmor(name, stats, description, iconPrompt) {
     try {
         const result = await websim.imageGen({
             prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
-            transparent: true,
             aspect_ratio: "1:1"
         });
         armorIconUrl = result.url;
@@ -1756,7 +1777,6 @@ async function addRing(name, stats, description, iconPrompt) {
     try {
         const result = await websim.imageGen({
             prompt: `${iconPrompt}, ${getStyleTag('icon')}, simple, white background`,
-            transparent: true,
             aspect_ratio: "1:1"
         });
         ringIconUrl = result.url;
@@ -2089,7 +2109,7 @@ async function updateEvolutionMenuUI() {
                 }],
                 json: true,
             });
-            const data = JSON.parse(completion.content);
+            const data = JSON.parse(cleanJSON(completion.content));
             player.availableEvolutions = data.evolutions || [];
         } catch (error) {
             console.error("Error generating evolutions:", error);
@@ -2617,7 +2637,6 @@ fileLoader.addEventListener('change', async (event) => {
                 try {
                     const result = await websim.imageGen({
                         prompt: `${encounter.icon_prompt}, ${getStyleTag('icon')}, simple, white background`,
-                        transparent: true,
                         aspect_ratio: "1:1"
                     });
                     encounter.iconUrl = result.url;
@@ -3443,11 +3462,13 @@ let imageStyle = 'pixel';
 
 // New: Voice select
 const voiceSelect = document.getElementById('voice-select');
-let selectedVoice = 'BRIAN'; // Default voice
+let selectedVoice = 'AALIYAH'; // Default voice (Female, clear)
 
 // Track generated assets for export
 const generatedImages = []; // { url, ts, index }
 const ttsAudioUrls = [];    // { url, ts, index }
+const sfxAudioUrls = [];    // { url, ts, index } - ambient SFX for each scene
+const narrativeTexts = [];  // { text, ts, index } - for video subtitles
 
 imageStyleSelectInGame?.addEventListener('change', () => {
     imageStyle = imageStyleSelectInGame.value;
@@ -3465,6 +3486,35 @@ voiceSelect?.addEventListener('change', () => {
     console.log('🎤 Conversation history length:', conversationHistory.length);
     selectedVoice = voiceSelect.value;
     console.log('🎤 Voice change complete - history still intact:', conversationHistory.length);
+});
+
+// Model tier select
+const modelTierSelect = document.getElementById('model-tier-select');
+const modelTierSelectMenu = document.getElementById('model-tier-select-menu');
+
+// Initialize model tier selects from localStorage
+const savedTier = getModelTier();
+if (modelTierSelect) {
+    modelTierSelect.value = savedTier;
+}
+if (modelTierSelectMenu) {
+    modelTierSelectMenu.value = savedTier;
+}
+console.log(`🤖 Loaded model tier: ${savedTier}`);
+
+// Model tier select event listeners - sync both selectors
+modelTierSelect?.addEventListener('change', () => {
+    const newTier = modelTierSelect.value;
+    setModelTier(newTier);
+    if (modelTierSelectMenu) modelTierSelectMenu.value = newTier;
+    console.log(`🤖 Model tier changed to: ${newTier}`);
+});
+
+modelTierSelectMenu?.addEventListener('change', () => {
+    const newTier = modelTierSelectMenu.value;
+    setModelTier(newTier);
+    if (modelTierSelect) modelTierSelect.value = newTier;
+    console.log(`🤖 Model tier changed to: ${newTier}`);
 });
 
 // Unified style helper for scenes, icons, and avatars
@@ -3521,6 +3571,8 @@ async function generateTTSForMessage(text, messageElement) {
         // Cache it
         ttsAudioCache.set(text, audioData);
         ttsAudioUrls.push({ url: result.url, ts: Date.now(), index: ttsAudioUrls.length + 1 });
+        // Also track the text for video subtitles
+        narrativeTexts.push({ text: text, ts: Date.now(), index: narrativeTexts.length + 1 });
 
         return audioData;
     } catch (error) {
@@ -3640,6 +3692,15 @@ ttsButton.addEventListener('click', () => {
     if (!ttsEnabled && currentTtsAudio) { currentTtsAudio.pause(); currentTtsAudio = null; ttsQueue = []; isSpeaking = false; }
 });
 
+// SFX toggle button
+sfxButton.addEventListener('click', () => {
+    sfxEnabled = !sfxEnabled;
+    sfxButton.innerHTML = sfxEnabled
+        ? `<i class="fas fa-water"></i>`
+        : `<i class="fas fa-water" style="opacity: 0.4;"></i>`;
+    if (!sfxEnabled && currentSfxAudio) { currentSfxAudio.pause(); currentSfxAudio = null; }
+});
+
 // New: Voice read button
 voiceReadButton.addEventListener('click', async () => {
     if (activeContextMenuMessageIndex < 0) return;
@@ -3654,7 +3715,15 @@ voiceReadButton.addEventListener('click', async () => {
 
 // New: Expand image button
 expandImageButton?.addEventListener('click', () => {
-    if (!locationImage.src) return;
+    console.log('🖼️ Fullscreen button clicked!', {
+        hasImage: !!locationImage.src,
+        imageSrc: locationImage.src
+    });
+
+    if (!locationImage.src) {
+        console.warn('No image to display in fullscreen');
+        return;
+    }
     fullscreenImage.style.opacity = '0';
     fullscreenImage.src = locationImage.src;
     fullscreenOverlay.classList.add('active');
@@ -3714,4 +3783,155 @@ async function exportMediaZip() {
     exportMediaButton.innerHTML = original;
     exportMediaButton.disabled = false;
 }
-exportMediaButton?.addEventListener('click', exportMediaZip);
+
+// Export modal logic
+const exportModal = document.getElementById('export-modal');
+const exportModalClose = document.getElementById('export-modal-close');
+const exportFilesButton = document.getElementById('export-files-button');
+const exportVideoButton = document.getElementById('export-video-button');
+const exportSubtitlesCheckbox = document.getElementById('export-subtitles-checkbox');
+const exportStatus = document.getElementById('export-status');
+
+// Open export modal instead of directly exporting
+exportMediaButton?.addEventListener('click', () => {
+    console.log('📦 Export button clicked!', {
+        images: generatedImages.length,
+        audio: ttsAudioUrls.length
+    });
+
+    if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
+        alert('No images or audio to export yet. Play the game first to generate content!');
+        return;
+    }
+    exportModal.style.display = 'block';
+    exportStatus.innerHTML = '';
+});
+
+// Close modal
+exportModalClose?.addEventListener('click', () => {
+    exportModal.style.display = 'none';
+});
+
+// Export files (existing ZIP functionality)
+exportFilesButton?.addEventListener('click', async () => {
+    exportModal.style.display = 'none';
+    await exportMediaZip();
+});
+
+// Export video
+exportVideoButton?.addEventListener('click', async () => {
+    const includeSubtitles = exportSubtitlesCheckbox.checked;
+    exportVideoButton.disabled = true;
+    exportFilesButton.disabled = true;
+    exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
+
+    try {
+        // Prepare scenes data - match images with audio and text
+        const scenes = [];
+        const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length, narrativeTexts.length);
+
+        // Helper function to convert blob URL to base64 data URL
+        async function blobUrlToBase64(blobUrl) {
+            const response = await fetch(blobUrl);
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        for (let i = 0; i < maxScenes; i++) {
+            const scene = {};
+
+            // Get image (use last available if not enough)
+            if (generatedImages.length > 0) {
+                const imgIndex = Math.min(i, generatedImages.length - 1);
+                let imageUrl = generatedImages[imgIndex].url;
+
+                // Convert blob URL to base64 if needed
+                if (imageUrl.startsWith('blob:')) {
+                    imageUrl = await blobUrlToBase64(imageUrl);
+                }
+                scene.image = imageUrl;
+            }
+
+            // Get audio (optional)
+            if (ttsAudioUrls.length > i) {
+                let audioUrl = ttsAudioUrls[i].url;
+
+                // Convert blob URL to base64 if needed
+                if (audioUrl.startsWith('blob:')) {
+                    audioUrl = await blobUrlToBase64(audioUrl);
+                }
+                scene.audio = audioUrl;
+            }
+
+            // Get SFX audio (optional)
+            if (sfxAudioUrls.length > i) {
+                let sfxUrl = sfxAudioUrls[i].url;
+
+                // Convert blob URL to base64 if needed
+                if (sfxUrl.startsWith('blob:')) {
+                    sfxUrl = await blobUrlToBase64(sfxUrl);
+                }
+                scene.sfx = sfxUrl;
+            }
+
+            // Get text (optional, for subtitles)
+            if (narrativeTexts.length > i) {
+                scene.text = narrativeTexts[i].text;
+            }
+
+            // Skip scene if no image
+            if (!scene.image) continue;
+
+            scenes.push(scene);
+        }
+
+        if (scenes.length === 0) {
+            throw new Error('No scenes to export');
+        }
+
+        // Call video server
+        const response = await fetch('http://localhost:3100/generate-video', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                scenes: scenes,
+                includeSubtitles: includeSubtitles
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Video generation failed');
+        }
+
+        const result = await response.json();
+
+        // Download the video
+        const videoUrl = `http://localhost:3100${result.videoUrl}`;
+        const a = document.createElement('a');
+        a.href = videoUrl;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully!';
+        setTimeout(() => {
+            exportModal.style.display = 'none';
+        }, 2000);
+
+    } catch (error) {
+        console.error('Video export error:', error);
+        exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}<br><small>Make sure the video server is running (npm run server)</small>`;
+    } finally {
+        exportVideoButton.disabled = false;
+        exportFilesButton.disabled = false;
+    }
+});
