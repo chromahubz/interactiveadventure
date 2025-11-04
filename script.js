@@ -3726,75 +3726,101 @@ voiceReadButton.addEventListener('click', async () => {
 
 // Initialize button event listeners (called after DOM is ready)
 function initializeButtonListeners() {
-    // Query elements directly here (in case top-level queries were too early)
-    const expandBtn = document.getElementById('expand-image-button');
-    const exportBtn = document.getElementById('export-media-button');
-    const overlay = document.getElementById('fullscreen-overlay');
-    const fullscreenImg = document.getElementById('fullscreen-image');
-    const locImg = document.getElementById('location-image');
+    try {
+        console.log('🔧 initializeButtonListeners() STARTING...');
 
-    console.log('🔧 Initializing button listeners...', {
-        expandImageButton: !!expandBtn,
-        exportMediaButton: !!exportBtn,
-        fullscreenOverlay: !!overlay,
-        fullscreenImage: !!fullscreenImg,
-        locationImage: !!locImg
-    });
+        // Query elements directly here (in case top-level queries were too early)
+        const expandBtn = document.getElementById('expand-image-button');
+        const exportBtn = document.getElementById('export-media-button');
+        const overlay = document.getElementById('fullscreen-overlay');
+        const fullscreenImg = document.getElementById('fullscreen-image');
+        const locImg = document.getElementById('location-image');
 
-    // Fullscreen image button
-    if (expandBtn) {
-        expandBtn.addEventListener('click', () => {
-            console.log('🖼️ Fullscreen button clicked!', {
-                hasImage: !!locImg.src,
-                imageSrc: locImg.src
-            });
-
-            if (!locImg.src) {
-                console.warn('No image to display in fullscreen');
-                alert('No image to display. Play the game to generate images!');
-                return;
-            }
-            fullscreenImg.style.opacity = '0';
-            fullscreenImg.src = locImg.src;
-            overlay.classList.add('active');
-            requestAnimationFrame(() => { fullscreenImg.style.opacity = '1'; });
+        console.log('🔧 Elements found:', {
+            expandImageButton: !!expandBtn,
+            exportMediaButton: !!exportBtn,
+            fullscreenOverlay: !!overlay,
+            fullscreenImage: !!fullscreenImg,
+            locationImage: !!locImg
         });
-        console.log('✅ Fullscreen button listener attached');
-    } else {
-        console.error('❌ expandImageButton not found in DOM!');
-    }
 
-    // Fullscreen overlay close handlers
-    if (overlay) {
-        overlay.addEventListener('click', () => overlay.classList.remove('active'));
-        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.remove('active'); });
-    }
+        // Fullscreen image button
+        if (expandBtn) {
+            expandBtn.addEventListener('click', (e) => {
+                try {
+                    console.log('🖼️ Fullscreen button clicked!', {
+                        target: e.target,
+                        currentTarget: e.currentTarget,
+                        hasImage: !!locImg.src,
+                        imageSrc: locImg.src
+                    });
 
-    // Export media button
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            console.log('📦 Export button clicked!', {
-                images: generatedImages.length,
-                audio: ttsAudioUrls.length
-            });
+                    if (!locImg.src) {
+                        console.warn('No image to display in fullscreen');
+                        alert('No image to display. Play the game to generate images!');
+                        return;
+                    }
+                    fullscreenImg.style.opacity = '0';
+                    fullscreenImg.src = locImg.src;
+                    overlay.classList.add('active');
+                    requestAnimationFrame(() => { fullscreenImg.style.opacity = '1'; });
+                } catch (err) {
+                    console.error('❌ Error in fullscreen click handler:', err);
+                }
+            }, true); // Use capture to catch clicks on child elements too
+            console.log('✅ Fullscreen button listener attached');
+        } else {
+            console.error('❌ expandImageButton not found in DOM!');
+        }
 
-            if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
-                alert('No images or audio to export yet. Play the game first to generate content!');
-                return;
-            }
+        // Fullscreen overlay close handlers
+        if (overlay) {
+            overlay.addEventListener('click', () => overlay.classList.remove('active'));
+            window.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.remove('active'); });
+        }
 
-            const modal = document.getElementById('export-modal');
-            if (modal) {
-                modal.style.display = 'block';
-                const status = document.getElementById('export-status');
-                if (status) status.innerHTML = '';
-            } else {
-                console.error('Export modal not found!');
-            }
-        });
-        console.log('✅ Export button listener attached');
-    } else {
-        console.error('❌ exportMediaButton not found in DOM!');
+        // Export media button
+        if (exportBtn) {
+            exportBtn.addEventListener('click', (e) => {
+                try {
+                    console.log('📦 Export button clicked!', {
+                        target: e.target,
+                        currentTarget: e.currentTarget,
+                        images: typeof generatedImages !== 'undefined' ? generatedImages.length : 'undefined',
+                        audio: typeof ttsAudioUrls !== 'undefined' ? ttsAudioUrls.length : 'undefined'
+                    });
+
+                    if (typeof generatedImages === 'undefined' || typeof ttsAudioUrls === 'undefined') {
+                        console.error('generatedImages or ttsAudioUrls not defined yet!');
+                        alert('App not fully loaded. Please refresh the page.');
+                        return;
+                    }
+
+                    if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
+                        alert('No images or audio to export yet. Play the game first to generate content!');
+                        return;
+                    }
+
+                    const modal = document.getElementById('export-modal');
+                    if (modal) {
+                        modal.style.display = 'block';
+                        const status = document.getElementById('export-status');
+                        if (status) status.innerHTML = '';
+                    } else {
+                        console.error('Export modal not found!');
+                    }
+                } catch (err) {
+                    console.error('❌ Error in export click handler:', err);
+                }
+            }, true); // Use capture to catch clicks on child elements too
+            console.log('✅ Export button listener attached');
+        } else {
+            console.error('❌ exportMediaButton not found in DOM!');
+        }
+
+        console.log('🔧 initializeButtonListeners() COMPLETE!');
+    } catch (error) {
+        console.error('❌ FATAL ERROR in initializeButtonListeners():', error);
     }
 }
 
