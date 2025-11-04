@@ -2459,6 +2459,53 @@ saveButton.addEventListener('click', () => {
     }, 1500);
 });
 
+// Undo Button - Removes last user/AI exchange from history and UI
+undoButton.addEventListener('click', () => {
+    console.log('🔄 Undo button clicked');
+
+    // Check if we can undo (need at least 2 messages: user + assistant)
+    if (conversationHistory.length < 2) {
+        console.warn('❌ Not enough messages to undo');
+        return;
+    }
+
+    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    const secondLastMessage = conversationHistory[conversationHistory.length - 2];
+
+    // Only undo if last two messages are assistant then user (in that order from oldest to newest)
+    if (lastMessage.role !== 'assistant' || secondLastMessage.role !== 'user') {
+        console.warn('❌ Cannot undo: Last messages are not user->assistant pair');
+        return;
+    }
+
+    console.log('✅ Undoing last exchange...');
+
+    // Remove last 2 messages from history (user message + AI response)
+    conversationHistory.pop(); // Remove AI response
+    conversationHistory.pop(); // Remove user message
+
+    // Remove last 2 messages from UI
+    const messages = messagesContainer.querySelectorAll('.message');
+    if (messages.length >= 2) {
+        messages[messages.length - 1].remove(); // Remove AI message
+        messages[messages.length - 2].remove(); // Remove user message
+    }
+
+    // Update control buttons state
+    updateControlButtons();
+
+    // Visual feedback
+    const originalText = undoButton.innerHTML;
+    undoButton.innerHTML = `<i class="fas fa-check"></i>`;
+    undoButton.disabled = true;
+    setTimeout(() => {
+        undoButton.innerHTML = originalText;
+        updateControlButtons(); // Re-enable if still possible to undo
+    }, 1000);
+
+    console.log('✅ Undo complete. Messages remaining:', conversationHistory.length);
+});
+
 // Load Button (in-game) - Opens file picker
 loadButton.addEventListener('click', () => {
     fileLoader.click();
