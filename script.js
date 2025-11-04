@@ -3959,54 +3959,127 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') fullscreenOv
 
 /* Export media as ZIP */
 async function exportMediaZip() {
+    console.log('📦 ==================== ZIP EXPORT STARTED ====================');
+    console.log('📊 Available data:', {
+        images: generatedImages.length,
+        audio: ttsAudioUrls.length
+    });
+
     if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
-        alert('No images or audio to export yet.');
+        console.error('❌ No data to export');
+        alert('No images or audio to export yet. Play the game to generate content!');
         return;
     }
-    exportMediaButton.disabled = true;
-    const original = exportMediaButton.innerHTML;
-    exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Preparing...`;
-    const zip = new JSZip();
-    const imgFolder = zip.folder('images');
-    const audioFolder = zip.folder('audio');
 
-    const toBlob = async (url) => {
-        const res = await fetch(url, { mode: 'cors' });
-        return await res.blob();
-    };
-    const extFromUrl = (url, fallback) => {
-        try {
-            const u = new URL(url, location.href);
-            const m = u.pathname.match(/\.(\w+)(?:$|\?)/);
-            return m ? m[1].toLowerCase() : fallback;
-        } catch { return fallback; }
-    };
+    try {
+        // Disable button and show loading
+        console.log('🔒 Disabling export button');
+        exportMediaButton.disabled = true;
+        const original = exportMediaButton.innerHTML;
+        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Preparing ZIP...`;
 
-    for (const item of generatedImages) {
-        const blob = await toBlob(item.url);
-        const ext = extFromUrl(item.url, 'png');
-        const name = `scene-${String(item.index).padStart(3,'0')}.${ext}`;
-        imgFolder.file(name, blob);
+        // Initialize JSZip
+        console.log('📦 Initializing JSZip');
+        if (typeof JSZip === 'undefined') {
+            throw new Error('JSZip library not loaded. Check internet connection.');
+        }
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder('images');
+        const audioFolder = zip.folder('audio');
+        console.log('✅ ZIP folders created');
+
+        const toBlob = async (url) => {
+            console.log(`  📥 Fetching: ${url.substring(0, 50)}...`);
+            const res = await fetch(url, { mode: 'cors' });
+            if (!res.ok) {
+                throw new Error(`Failed to fetch ${url}: ${res.status}`);
+            }
+            const blob = await res.blob();
+            console.log(`  ✅ Fetched: ${blob.size} bytes`);
+            return blob;
+        };
+
+        const extFromUrl = (url, fallback) => {
+            try {
+                const u = new URL(url, location.href);
+                const m = u.pathname.match(/\.(\w+)(?:$|\?)/);
+                return m ? m[1].toLowerCase() : fallback;
+            } catch { return fallback; }
+        };
+
+        // Export images
+        console.log(`📷 Exporting ${generatedImages.length} images...`);
+        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting images...`;
+
+        for (let i = 0; i < generatedImages.length; i++) {
+            const item = generatedImages[i];
+            console.log(`  Image ${i + 1}/${generatedImages.length}`);
+            const blob = await toBlob(item.url);
+            const ext = extFromUrl(item.url, 'png');
+            const name = `scene-${String(item.index).padStart(3,'0')}.${ext}`;
+            imgFolder.file(name, blob);
+            console.log(`  ✅ Added: ${name}`);
+        }
+
+        // Export audio
+        console.log(`🎤 Exporting ${ttsAudioUrls.length} audio files...`);
+        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting audio...`;
+
+        for (let i = 0; i < ttsAudioUrls.length; i++) {
+            const item = ttsAudioUrls[i];
+            console.log(`  Audio ${i + 1}/${ttsAudioUrls.length}`);
+            const blob = await toBlob(item.url);
+            const ext = extFromUrl(item.url, 'mp3');
+            const name = `tts-${String(item.index).padStart(3,'0')}.${ext}`;
+            audioFolder.file(name, blob);
+            console.log(`  ✅ Added: ${name}`);
+        }
+
+        // Generate ZIP
+        console.log('🗜️ Generating ZIP file...');
+        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Creating ZIP...`;
+
+        const outBlob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+
+        console.log(`✅ ZIP created: ${outBlob.size} bytes (${(outBlob.size / (1024 * 1024)).toFixed(2)} MB)`);
+
+        // Download
+        const ts = new Date().toISOString().replace(/[:.]/g,'-');
+        const filename = `rpg-media-${ts}.zip`;
+        console.log(`💾 Downloading: ${filename}`);
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(outBlob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+        console.log('✅ ==================== ZIP EXPORT COMPLETE ====================');
+        exportMediaButton.innerHTML = `<i class="fas fa-check"></i> Downloaded!`;
+        setTimeout(() => {
+            exportMediaButton.innerHTML = original;
+        }, 2000);
+
+    } catch (error) {
+        console.error('❌ ==================== ZIP EXPORT FAILED ====================');
+        console.error('❌ Error:', error);
+        console.error('❌ Stack:', error.stack);
+        alert(`Export failed: ${error.message}\n\nCheck console (F12) for details.`);
+        exportMediaButton.innerHTML = `<i class="fas fa-times"></i> Failed`;
+        setTimeout(() => {
+            exportMediaButton.innerHTML = `<i class="fas fa-file-archive"></i>`;
+        }, 2000);
+    } finally {
+        exportMediaButton.disabled = false;
+        console.log('🔓 Export button re-enabled');
     }
-    for (const item of ttsAudioUrls) {
-        const blob = await toBlob(item.url);
-        const ext = extFromUrl(item.url, 'mp3');
-        const name = `tts-${String(item.index).padStart(3,'0')}.${ext}`;
-        audioFolder.file(name, blob);
-    }
-
-    const outBlob = await zip.generateAsync({ type: 'blob' });
-    const ts = new Date().toISOString().replace(/[:.]/g,'-');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(outBlob);
-    a.download = `rpg-media-${ts}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-
-    exportMediaButton.innerHTML = original;
-    exportMediaButton.disabled = false;
 }
 
 // Export modal logic
