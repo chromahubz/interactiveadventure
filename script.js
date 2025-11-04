@@ -33,14 +33,22 @@ function playClickSound() {
     pixelClickSound.play().catch(err => console.error('Click sound error:', err));
 }
 
+// Global click debugger - catch ALL clicks on the page
+document.addEventListener('click', (e) => {
+    if (e.target.id === 'expand-image-button' || e.target.closest('#expand-image-button')) {
+        console.log('🔍 GLOBAL: Fullscreen button click detected!', e.target);
+    }
+    if (e.target.id === 'export-media-button' || e.target.closest('#export-media-button')) {
+        console.log('🔍 GLOBAL: Export button click detected!', e.target);
+    }
+}, true); // Use capture phase to catch before other handlers
+
 // Add click listeners to all control buttons
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('📌 DOMContentLoaded event fired');
     document.querySelectorAll('.control-button, button, .race-button, .class-button').forEach(btn => {
         btn.addEventListener('click', playClickSound);
     });
-
-    // Initialize button event listeners after DOM is ready
-    initializeButtonListeners();
 });
 
 const undoButton = document.getElementById('undo-button');
@@ -4000,3 +4008,8 @@ exportVideoButton?.addEventListener('click', async () => {
         exportFilesButton.disabled = false;
     }
 });
+
+// Initialize buttons immediately (script loads as module at end of HTML, so DOM is ready)
+console.log('📌 Calling initializeButtonListeners() at end of script');
+console.log('📌 document.readyState:', document.readyState);
+initializeButtonListeners();
