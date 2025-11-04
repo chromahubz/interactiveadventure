@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.control-button, button, .race-button, .class-button').forEach(btn => {
         btn.addEventListener('click', playClickSound);
     });
+
+    // Initialize button event listeners after DOM is ready
+    initializeButtonListeners();
 });
 
 const undoButton = document.getElementById('undo-button');
@@ -3713,21 +3716,83 @@ voiceReadButton.addEventListener('click', async () => {
     messageContextMenu.classList.add('hidden');
 });
 
-// New: Expand image button
-expandImageButton?.addEventListener('click', () => {
-    console.log('🖼️ Fullscreen button clicked!', {
-        hasImage: !!locationImage.src,
-        imageSrc: locationImage.src
+// Initialize button event listeners (called after DOM is ready)
+function initializeButtonListeners() {
+    // Query elements directly here (in case top-level queries were too early)
+    const expandBtn = document.getElementById('expand-image-button');
+    const exportBtn = document.getElementById('export-media-button');
+    const overlay = document.getElementById('fullscreen-overlay');
+    const fullscreenImg = document.getElementById('fullscreen-image');
+    const locImg = document.getElementById('location-image');
+
+    console.log('🔧 Initializing button listeners...', {
+        expandImageButton: !!expandBtn,
+        exportMediaButton: !!exportBtn,
+        fullscreenOverlay: !!overlay,
+        fullscreenImage: !!fullscreenImg,
+        locationImage: !!locImg
     });
 
-    if (!locationImage.src) {
-        console.warn('No image to display in fullscreen');
-        return;
+    // Fullscreen image button
+    if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+            console.log('🖼️ Fullscreen button clicked!', {
+                hasImage: !!locImg.src,
+                imageSrc: locImg.src
+            });
+
+            if (!locImg.src) {
+                console.warn('No image to display in fullscreen');
+                alert('No image to display. Play the game to generate images!');
+                return;
+            }
+            fullscreenImg.style.opacity = '0';
+            fullscreenImg.src = locImg.src;
+            overlay.classList.add('active');
+            requestAnimationFrame(() => { fullscreenImg.style.opacity = '1'; });
+        });
+        console.log('✅ Fullscreen button listener attached');
+    } else {
+        console.error('❌ expandImageButton not found in DOM!');
     }
-    fullscreenImage.style.opacity = '0';
-    fullscreenImage.src = locationImage.src;
-    fullscreenOverlay.classList.add('active');
-    requestAnimationFrame(() => { fullscreenImage.style.opacity = '1'; });
+
+    // Fullscreen overlay close handlers
+    if (overlay) {
+        overlay.addEventListener('click', () => overlay.classList.remove('active'));
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.remove('active'); });
+    }
+
+    // Export media button
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            console.log('📦 Export button clicked!', {
+                images: generatedImages.length,
+                audio: ttsAudioUrls.length
+            });
+
+            if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
+                alert('No images or audio to export yet. Play the game first to generate content!');
+                return;
+            }
+
+            const modal = document.getElementById('export-modal');
+            if (modal) {
+                modal.style.display = 'block';
+                const status = document.getElementById('export-status');
+                if (status) status.innerHTML = '';
+            } else {
+                console.error('Export modal not found!');
+            }
+        });
+        console.log('✅ Export button listener attached');
+    } else {
+        console.error('❌ exportMediaButton not found in DOM!');
+    }
+}
+
+// Legacy code (kept for backwards compatibility if initializeButtonListeners fails)
+expandImageButton?.addEventListener('click', () => {
+    console.log('🖼️ Fullscreen button clicked! (legacy listener)');
 });
 fullscreenOverlay?.addEventListener('click', () => fullscreenOverlay.classList.remove('active'));
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') fullscreenOverlay.classList.remove('active'); });

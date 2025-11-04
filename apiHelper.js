@@ -448,7 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        return null;
+                        console.log('🔄 Trying Gemini TTS as fallback...');
+                        return await tryGeminiTTS(text, voice);
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -457,7 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                return null;
+                console.log('🔄 Trying Gemini TTS as fallback...');
+                return await tryGeminiTTS(text, voice);
             }
 
             const blob = await response.blob();
@@ -466,10 +468,86 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            return null;
+            console.log('🔄 Trying Gemini TTS as fallback...');
+            return await tryGeminiTTS(text, voice);
         }
     }
 };
+
+// Gemini TTS fallback function
+async function tryGeminiTTS(text, voice) {
+    try {
+        console.log('🎤 Gemini TTS Request:', { text: text.substring(0, 50), voice });
+
+        // Map voices to Gemini voice config (Gemini has different voice system)
+        // Gemini supports: Puck, Charon, Kore, Fenrir, Aoede
+        const geminiVoiceMap = {
+            // Female voices → Aoede or Kore
+            AALIYAH: 'Aoede', ADELAIDE: 'Aoede', ARISTA: 'Kore', CELESTE: 'Aoede',
+            CHEYENNE: 'Kore', DEEDEE: 'Aoede', ELEANOR: 'Kore', GAIL: 'Aoede',
+            JENNIFER: 'Kore', JUDY: 'Aoede', MAMAW: 'Aoede', NIA: 'Kore', RUBY: 'Aoede',
+            // Male voices → Puck, Charon, or Fenrir
+            ANGELO: 'Puck', ATLAS: 'Charon', BASIL: 'Puck', BRIGGS: 'Charon',
+            CALUM: 'Puck', CHIP: 'Puck', CILLIAN: 'Charon', FRITZ: 'Puck',
+            MASON: 'Charon', MIKAIL: 'Puck', MITCH: 'Charon', THUNDER: 'Fenrir',
+            // Neutral
+            INDIGO: 'Kore', QUINN: 'Kore'
+        };
+
+        const geminiVoice = geminiVoiceMap[voice] || 'Puck';
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_CONFIG.GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{ text: text }]
+                    }],
+                    generationConfig: {
+                        speechConfig: {
+                            voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } }
+                        }
+                    }
+                })
+            }
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Gemini TTS error:', response.status, errorText);
+            return null;
+        }
+
+        const data = await response.json();
+
+        // Extract audio data from response
+        if (data.candidates && data.candidates[0]?.content?.parts) {
+            const audioPart = data.candidates[0].content.parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'));
+            if (audioPart?.inlineData?.data) {
+                // Convert base64 to blob
+                const base64Data = audioPart.inlineData.data;
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: audioPart.inlineData.mimeType || 'audio/wav' });
+                const url = URL.createObjectURL(blob);
+
+                console.log('✅ Gemini TTS success!');
+                return { url, blob };
+            }
+        }
+
+        console.error('Gemini TTS: No audio data in response');
+        return null;
+    } catch (error) {
+        console.error('Gemini TTS Error:', error);
+        return null;
+    }
+}
 
 // Export default for easy import
 export default websim;
