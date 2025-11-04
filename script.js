@@ -81,19 +81,9 @@ document.addEventListener('click', (e) => {
         }
     }
 
-    // Export Video (WebM) button
-    if (e.target.id === 'export-video-button' || e.target.closest('#export-video-button')) {
-        console.log('🎬 Export Video button clicked (emergency handler)');
-
-        // Trigger the main video export (will be defined later in script)
-        setTimeout(() => {
-            const btn = document.getElementById('export-video-button');
-            if (btn && !btn.disabled) {
-                console.log('⚠️ EMERGENCY: Triggering video export via emergency handler');
-                btn.click(); // Re-trigger to execute the actual handler
-            }
-        }, 50);
-    }
+    // Export Video (WebM) button - NO EMERGENCY HANDLER NEEDED
+    // The main handler at line 4216 should work fine
+    // Emergency handler was causing infinite loop
 
     // Close export modal button
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
