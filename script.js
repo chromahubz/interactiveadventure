@@ -89,6 +89,42 @@ document.addEventListener('click', (e) => {
     }
 }, true);
 
+// Click-to-enlarge for item images (Items, Weapons, Armor, Rings, Party Members, Encounters)
+document.addEventListener('click', (e) => {
+    // Check if click is on an image inside item containers
+    const itemContainers = [
+        '.item', '.weapon', '.armor', '.ring', '.party-member',
+        '.encounter-item', '#equipment-list li'
+    ];
+
+    let clickedImage = null;
+
+    // Check if clicked element is an image
+    if (e.target.tagName === 'IMG') {
+        // Check if image is inside an item container
+        for (const selector of itemContainers) {
+            if (e.target.closest(selector)) {
+                clickedImage = e.target;
+                break;
+            }
+        }
+    }
+
+    if (clickedImage && clickedImage.src && !clickedImage.src.includes('data:image/gif')) {
+        console.log('🖼️ Item image clicked, enlarging:', clickedImage.alt);
+
+        const overlay = document.getElementById('fullscreen-overlay');
+        const fullscreenImg = document.getElementById('fullscreen-image');
+
+        if (overlay && fullscreenImg) {
+            fullscreenImg.style.opacity = '0';
+            fullscreenImg.src = clickedImage.src;
+            overlay.classList.add('active');
+            requestAnimationFrame(() => { fullscreenImg.style.opacity = '1'; });
+        }
+    }
+}, true);
+
 // Global click debugger - catch ALL clicks on the page AND handle buttons directly
 document.addEventListener('click', (e) => {
     const target = e.target.closest('#expand-image-button, #export-media-button');
