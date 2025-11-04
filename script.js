@@ -63,33 +63,16 @@ setTimeout(() => {
     }
 }, 100);
 
-// Emergency handlers for export modal buttons
+// Global click debugger (for troubleshooting only)
 document.addEventListener('click', (e) => {
-    // Export Files (ZIP) button
     if (e.target.id === 'export-files-button' || e.target.closest('#export-files-button')) {
-        console.log('📦 Export Files button clicked');
-        e.preventDefault();
-        const modal = document.getElementById('export-modal');
-        if (modal) modal.style.display = 'none';
-
-        // Call exportMediaZip function
-        if (typeof exportMediaZip === 'function') {
-            console.log('✅ Calling exportMediaZip()');
-            exportMediaZip().catch(err => console.error('Export ZIP error:', err));
-        } else {
-            console.error('❌ exportMediaZip function not found');
-        }
+        console.log('🔍 GLOBAL: Export Files (ZIP) button click detected!');
     }
-
-    // Export Video (WebM) button - NO EMERGENCY HANDLER NEEDED
-    // The main handler at line 4216 should work fine
-    // Emergency handler was causing infinite loop
-
-    // Close export modal button
+    if (e.target.id === 'export-video-button' || e.target.closest('#export-video-button')) {
+        console.log('🔍 GLOBAL: Export Video button click detected!');
+    }
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
-        console.log('❌ Export modal close clicked');
-        const modal = document.getElementById('export-modal');
-        if (modal) modal.style.display = 'none';
+        console.log('🔍 GLOBAL: Export modal close click detected!');
     }
 }, true);
 
@@ -4129,39 +4112,158 @@ async function exportMediaZip() {
     }
 }
 
-// Export modal logic
-const exportModal = document.getElementById('export-modal');
-const exportModalClose = document.getElementById('export-modal-close');
-const exportFilesButton = document.getElementById('export-files-button');
-const exportVideoButton = document.getElementById('export-video-button');
-const exportSubtitlesCheckbox = document.getElementById('export-subtitles-checkbox');
-const exportStatus = document.getElementById('export-status');
+// Export modal logic - Initialize after DOM is ready
+function initializeExportModal() {
+    console.log('🔧 Initializing export modal...');
 
-// Open export modal instead of directly exporting
-exportMediaButton?.addEventListener('click', () => {
-    console.log('📦 Export button clicked!', {
-        images: generatedImages.length,
-        audio: ttsAudioUrls.length
+    const exportModal = document.getElementById('export-modal');
+    const exportModalClose = document.getElementById('export-modal-close');
+    const exportFilesButton = document.getElementById('export-files-button');
+    const exportVideoButton = document.getElementById('export-video-button');
+    const exportSubtitlesCheckbox = document.getElementById('export-subtitles-checkbox');
+    const exportStatus = document.getElementById('export-status');
+
+    console.log('🔧 Export modal elements:', {
+        exportModal: !!exportModal,
+        exportModalClose: !!exportModalClose,
+        exportFilesButton: !!exportFilesButton,
+        exportVideoButton: !!exportVideoButton,
+        exportMediaButton: !!exportMediaButton
     });
 
-    if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
-        alert('No images or audio to export yet. Play the game first to generate content!');
-        return;
+    // Open export modal instead of directly exporting
+    if (exportMediaButton) {
+        exportMediaButton.addEventListener('click', () => {
+            console.log('📦 Export button clicked!', {
+                images: generatedImages.length,
+                audio: ttsAudioUrls.length
+            });
+
+            if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
+                alert('No images or audio to export yet. Play the game first to generate content!');
+                return;
+            }
+            exportModal.style.display = 'block';
+            exportStatus.innerHTML = '';
+        });
+        console.log('✅ Export media button listener attached');
+    } else {
+        console.error('❌ exportMediaButton not found!');
     }
-    exportModal.style.display = 'block';
-    exportStatus.innerHTML = '';
-});
 
-// Close modal
-exportModalClose?.addEventListener('click', () => {
-    exportModal.style.display = 'none';
-});
+    // Close modal
+    if (exportModalClose) {
+        exportModalClose.addEventListener('click', () => {
+            console.log('❌ Closing export modal (main handler)');
+            exportModal.style.display = 'none';
+        });
+        console.log('✅ Export modal close button listener attached');
+    } else {
+        console.error('❌ exportModalClose not found!');
+    }
 
-// Export files (existing ZIP functionality)
-exportFilesButton?.addEventListener('click', async () => {
-    exportModal.style.display = 'none';
-    await exportMediaZip();
-});
+    // Export files (existing ZIP functionality)
+    if (exportFilesButton) {
+        exportFilesButton.addEventListener('click', async () => {
+            console.log('📦 ===== Export Files button clicked (main handler) =====');
+            exportModal.style.display = 'none';
+            try {
+                await exportMediaZip();
+                console.log('✅ ===== exportMediaZip() completed successfully =====');
+            } catch (error) {
+                console.error('❌ ===== exportMediaZip() failed =====', error);
+                alert(`ZIP export failed: ${error.message}`);
+            }
+        });
+        console.log('✅ Export files button listener attached');
+    } else {
+        console.error('❌ exportFilesButton not found!');
+    }
+
+    // Export video button handler
+    if (exportVideoButton) {
+        exportVideoButton.addEventListener('click', async () => {
+            const includeSubtitles = exportSubtitlesCheckbox.checked;
+            exportVideoButton.disabled = true;
+            exportFilesButton.disabled = true;
+            exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
+
+            try {
+                console.log('🎬 Video export started');
+
+                // Prepare scenes data
+                const scenes = [];
+                const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length);
+
+                for (let i = 0; i < maxScenes; i++) {
+                    const scene = {};
+
+                    // Get image (use last available if not enough)
+                    if (generatedImages.length > 0) {
+                        const imgIndex = Math.min(i, generatedImages.length - 1);
+                        scene.imageUrl = generatedImages[imgIndex].url;
+                    }
+
+                    // Get audio duration if available
+                    if (ttsAudioUrls.length > i && ttsAudioUrls[i].duration) {
+                        scene.audioDuration = ttsAudioUrls[i].duration;
+                    }
+
+                    // Get text (optional, for subtitles)
+                    if (narrativeTexts.length > i) {
+                        scene.text = narrativeTexts[i].text;
+                    }
+
+                    // Skip scene if no image
+                    if (!scene.imageUrl) continue;
+
+                    scenes.push(scene);
+                }
+
+                if (scenes.length === 0) {
+                    throw new Error('No scenes to export. Play the game to generate images first!');
+                }
+
+                console.log('📊 Prepared', scenes.length, 'scenes');
+
+                // Generate video client-side
+                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
+
+                // Download the video
+                const filename = `adventure-${Date.now()}.webm`;
+                const url = URL.createObjectURL(videoBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                // Cleanup
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (WebM format)';
+                console.log('✅ Video export complete:', filename);
+
+                setTimeout(() => {
+                    exportModal.style.display = 'none';
+                }, 3000);
+
+            } catch (error) {
+                console.error('❌ Video export error:', error);
+                exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}`;
+            } finally {
+                exportVideoButton.disabled = false;
+                exportFilesButton.disabled = false;
+            }
+        });
+        console.log('✅ Export video button listener attached');
+    } else {
+        console.error('❌ exportVideoButton not found!');
+    }
+
+    console.log('✅ Export modal initialization complete');
+}
 
 // CLIENT-SIDE VIDEO EXPORT using Canvas + MediaRecorder (WebM format)
 async function generateVideoClientSide(scenes, includeSubtitles) {
@@ -4336,84 +4438,11 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Export video button handler
-exportVideoButton?.addEventListener('click', async () => {
-    const includeSubtitles = exportSubtitlesCheckbox.checked;
-    exportVideoButton.disabled = true;
-    exportFilesButton.disabled = true;
-    exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
-
-    try {
-        console.log('🎬 Video export started');
-
-        // Prepare scenes data
-        const scenes = [];
-        const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length);
-
-        for (let i = 0; i < maxScenes; i++) {
-            const scene = {};
-
-            // Get image (use last available if not enough)
-            if (generatedImages.length > 0) {
-                const imgIndex = Math.min(i, generatedImages.length - 1);
-                scene.imageUrl = generatedImages[imgIndex].url;
-            }
-
-            // Get audio duration if available
-            if (ttsAudioUrls.length > i && ttsAudioUrls[i].duration) {
-                scene.audioDuration = ttsAudioUrls[i].duration;
-            }
-
-            // Get text (optional, for subtitles)
-            if (narrativeTexts.length > i) {
-                scene.text = narrativeTexts[i].text;
-            }
-
-            // Skip scene if no image
-            if (!scene.imageUrl) continue;
-
-            scenes.push(scene);
-        }
-
-        if (scenes.length === 0) {
-            throw new Error('No scenes to export. Play the game to generate images first!');
-        }
-
-        console.log('📊 Prepared', scenes.length, 'scenes');
-
-        // Generate video client-side
-        const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
-
-        // Download the video
-        const filename = `adventure-${Date.now()}.webm`;
-        const url = URL.createObjectURL(videoBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // Cleanup
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-        exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (WebM format)';
-        console.log('✅ Video export complete:', filename);
-
-        setTimeout(() => {
-            exportModal.style.display = 'none';
-        }, 3000);
-
-    } catch (error) {
-        console.error('❌ Video export error:', error);
-        exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}`;
-    } finally {
-        exportVideoButton.disabled = false;
-        exportFilesButton.disabled = false;
-    }
-});
-
 // Initialize buttons immediately (script loads as module at end of HTML, so DOM is ready)
 console.log('📌 Calling initializeButtonListeners() at end of script');
 console.log('📌 document.readyState:', document.readyState);
 initializeButtonListeners();
+
+// Initialize export modal
+console.log('📌 Calling initializeExportModal() at end of script');
+initializeExportModal();
