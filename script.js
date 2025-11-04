@@ -33,6 +33,62 @@ function playClickSound() {
     pixelClickSound.play().catch(err => console.error('Click sound error:', err));
 }
 
+// Global ESC key handler - ALWAYS close fullscreen/modals on ESC
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        // Close fullscreen
+        const overlay = document.getElementById('fullscreen-overlay');
+        if (overlay && overlay.classList.contains('active')) {
+            console.log('⌨️ ESC pressed: Closing fullscreen');
+            overlay.classList.remove('active');
+        }
+
+        // Close export modal
+        const exportModal = document.getElementById('export-modal');
+        if (exportModal && exportModal.style.display === 'block') {
+            console.log('⌨️ ESC pressed: Closing export modal');
+            exportModal.style.display = 'none';
+        }
+    }
+});
+
+// Global click handler for fullscreen overlay - click anywhere to close
+setTimeout(() => {
+    const overlay = document.getElementById('fullscreen-overlay');
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            console.log('🖱️ Fullscreen overlay clicked: Closing');
+            overlay.classList.remove('active');
+        });
+    }
+}, 100);
+
+// Emergency handlers for export modal buttons
+document.addEventListener('click', (e) => {
+    // Export Files (ZIP) button
+    if (e.target.id === 'export-files-button' || e.target.closest('#export-files-button')) {
+        console.log('📦 Export Files button clicked');
+        e.preventDefault();
+        const modal = document.getElementById('export-modal');
+        if (modal) modal.style.display = 'none';
+
+        // Call exportMediaZip function
+        if (typeof exportMediaZip === 'function') {
+            console.log('✅ Calling exportMediaZip()');
+            exportMediaZip().catch(err => console.error('Export ZIP error:', err));
+        } else {
+            console.error('❌ exportMediaZip function not found');
+        }
+    }
+
+    // Close export modal button
+    if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
+        console.log('❌ Export modal close clicked');
+        const modal = document.getElementById('export-modal');
+        if (modal) modal.style.display = 'none';
+    }
+}, true);
+
 // Global click debugger - catch ALL clicks on the page AND handle buttons directly
 document.addEventListener('click', (e) => {
     const target = e.target.closest('#expand-image-button, #export-media-button');
