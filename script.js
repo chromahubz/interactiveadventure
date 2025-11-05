@@ -112,45 +112,16 @@ document.addEventListener('click', (e) => {
     }
 }, true);
 
-// Global click debugger - catch ALL clicks on the page AND handle buttons directly
+// Global click debugger for troubleshooting only
 document.addEventListener('click', (e) => {
-    const target = e.target.closest('#expand-image-button, #export-media-button');
-
     if (e.target.id === 'expand-image-button' || e.target.closest('#expand-image-button')) {
         console.log('🔍 GLOBAL: Fullscreen button click detected!', e.target);
-
-        // EMERGENCY HANDLER: If main handler didn't fire, handle it here
-        setTimeout(() => {
-            const btn = document.getElementById('expand-image-button');
-            const img = document.getElementById('location-image');
-            const overlay = document.getElementById('fullscreen-overlay');
-            const fullscreenImg = document.getElementById('fullscreen-image');
-
-            if (btn && img && overlay && fullscreenImg && img.src) {
-                console.log('⚠️ EMERGENCY: Using global fallback handler for fullscreen');
-                fullscreenImg.style.opacity = '0';
-                fullscreenImg.src = img.src;
-                overlay.classList.add('active');
-                requestAnimationFrame(() => { fullscreenImg.style.opacity = '1'; });
-            }
-        }, 100);
     }
 
     if (e.target.id === 'export-media-button' || e.target.closest('#export-media-button')) {
         console.log('🔍 GLOBAL: Export button click detected!', e.target);
-
-        // EMERGENCY HANDLER: If main handler didn't fire, handle it here
-        setTimeout(() => {
-            const modal = document.getElementById('export-modal');
-            if (modal) {
-                console.log('⚠️ EMERGENCY: Using global fallback handler for export');
-                modal.style.display = 'block';
-                const status = document.getElementById('export-status');
-                if (status) status.innerHTML = '';
-            }
-        }, 100);
     }
-}, true); // Use capture phase to catch before other handlers
+}, true);
 
 // Add click listeners to all control buttons
 document.addEventListener('DOMContentLoaded', () => {
@@ -4178,13 +4149,15 @@ function initializeExportModal() {
     // Export video button handler
     if (exportVideoButton) {
         exportVideoButton.addEventListener('click', async () => {
+            console.log('🎬 ===== Export Video button clicked (main handler) =====');
+
             const includeSubtitles = exportSubtitlesCheckbox.checked;
             exportVideoButton.disabled = true;
             exportFilesButton.disabled = true;
             exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
 
             try {
-                console.log('🎬 Video export started');
+                console.log('🎬 Video export started - preparing scenes...');
 
                 // Prepare scenes data
                 const scenes = [];
@@ -4299,6 +4272,13 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
     for (let i = 0; i < scenes.length; i++) {
         const scene = scenes[i];
         console.log(`🎬 Rendering scene ${i + 1}/${scenes.length}`);
+
+        // Update progress in modal
+        const statusEl = document.getElementById('export-status');
+        if (statusEl) {
+            const progress = Math.round(((i + 1) / scenes.length) * 100);
+            statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Rendering scene ${i + 1}/${scenes.length} (${progress}%)`;
+        }
 
         // Clear canvas to black
         ctx.fillStyle = 'black';
