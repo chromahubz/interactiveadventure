@@ -521,11 +521,19 @@ async function tryGeminiTTS(text, voice) {
         }
 
         const data = await response.json();
+        console.log('🔍 Gemini TTS Full Response:', data);
 
         // Extract audio data from response
         if (data.candidates && data.candidates[0]?.content?.parts) {
+            console.log('🔍 Gemini candidates found:', data.candidates.length);
+            console.log('🔍 Gemini parts:', data.candidates[0].content.parts);
+
             const audioPart = data.candidates[0].content.parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'));
+            console.log('🔍 Gemini audio part:', audioPart);
+
             if (audioPart?.inlineData?.data) {
+                console.log('🔍 Gemini audio data length:', audioPart.inlineData.data.length);
+
                 // Convert base64 to blob
                 const base64Data = audioPart.inlineData.data;
                 const binaryString = atob(base64Data);
@@ -536,12 +544,13 @@ async function tryGeminiTTS(text, voice) {
                 const blob = new Blob([bytes], { type: audioPart.inlineData.mimeType || 'audio/wav' });
                 const url = URL.createObjectURL(blob);
 
-                console.log('✅ Gemini TTS success!');
+                console.log('✅ Gemini TTS success! Blob size:', blob.size, 'bytes');
                 return { url, blob };
             }
         }
 
-        console.error('Gemini TTS: No audio data in response');
+        console.error('❌ Gemini TTS: No audio data in response');
+        console.error('Response structure:', JSON.stringify(data, null, 2));
         return null;
     } catch (error) {
         console.error('Gemini TTS Error:', error);
