@@ -89,6 +89,102 @@ document.addEventListener('click', (e) => {
 
     if (e.target.id === 'export-video-button' || e.target.closest('#export-video-button')) {
         console.log('🔍 GLOBAL: Export Video button click detected!');
+
+        // EMERGENCY: Trigger video export directly
+        setTimeout(async () => {
+            console.log('🎬 ===== EMERGENCY VIDEO EXPORT HANDLER =====');
+
+            const exportModal = document.getElementById('export-modal');
+            const exportVideoButton = document.getElementById('export-video-button');
+            const exportFilesButton = document.getElementById('export-files-button');
+            const exportSubtitlesCheckbox = document.getElementById('export-subtitles-checkbox');
+            const exportStatus = document.getElementById('export-status');
+
+            console.log('  Export modal found:', !!exportModal);
+            console.log('  Export video button found:', !!exportVideoButton);
+            console.log('  Export status element found:', !!exportStatus);
+            console.log('  Subtitles checkbox found:', !!exportSubtitlesCheckbox);
+
+            if (!exportVideoButton || !exportStatus) {
+                console.error('❌ Cannot start video export - missing elements');
+                return;
+            }
+
+            const includeSubtitles = exportSubtitlesCheckbox ? exportSubtitlesCheckbox.checked : false;
+            console.log('  Include subtitles:', includeSubtitles);
+
+            exportVideoButton.disabled = true;
+            if (exportFilesButton) exportFilesButton.disabled = true;
+            exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting video export...';
+
+            try {
+                console.log('🎬 Checking data availability...');
+                console.log('  generatedImages:', typeof generatedImages !== 'undefined' ? generatedImages.length : 'undefined');
+                console.log('  ttsAudioUrls:', typeof ttsAudioUrls !== 'undefined' ? ttsAudioUrls.length : 'undefined');
+                console.log('  narrativeTexts:', typeof narrativeTexts !== 'undefined' ? narrativeTexts.length : 'undefined');
+
+                if (typeof generatedImages === 'undefined' || generatedImages.length === 0) {
+                    throw new Error('No images available. Play the game to generate images first!');
+                }
+
+                // Prepare scenes
+                const scenes = [];
+                const maxScenes = Math.max(generatedImages.length, ttsAudioUrls?.length || 0);
+                console.log('🎬 Preparing', maxScenes, 'scenes...');
+
+                for (let i = 0; i < maxScenes; i++) {
+                    const scene = {};
+
+                    if (generatedImages.length > 0) {
+                        const imgIndex = Math.min(i, generatedImages.length - 1);
+                        scene.imageUrl = generatedImages[imgIndex].url;
+                    }
+
+                    if (ttsAudioUrls && ttsAudioUrls.length > i && ttsAudioUrls[i].duration) {
+                        scene.audioDuration = ttsAudioUrls[i].duration;
+                    }
+
+                    if (narrativeTexts && narrativeTexts.length > i) {
+                        scene.text = narrativeTexts[i].text;
+                    }
+
+                    if (scene.imageUrl) {
+                        scenes.push(scene);
+                    }
+                }
+
+                console.log('✅ Prepared', scenes.length, 'scenes');
+
+                // Call video generation
+                console.log('🎬 Calling generateVideoClientSide()...');
+                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
+
+                // Download
+                const filename = `adventure-${Date.now()}.mp4`;
+                const url = URL.createObjectURL(videoBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (MP4 format)';
+                console.log('✅ Video export complete:', filename);
+
+                setTimeout(() => {
+                    if (exportModal) exportModal.style.display = 'none';
+                }, 3000);
+
+            } catch (error) {
+                console.error('❌ Video export error:', error);
+                exportStatus.innerHTML = `<i class="fas fa-times" style="color: red;"></i> Error: ${error.message}`;
+            } finally {
+                exportVideoButton.disabled = false;
+                if (exportFilesButton) exportFilesButton.disabled = false;
+            }
+        }, 50);
     }
 
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
@@ -145,6 +241,40 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
     if (e.target.id === 'expand-image-button' || e.target.closest('#expand-image-button')) {
         console.log('🔍 GLOBAL: Fullscreen button click detected!', e.target);
+
+        // EMERGENCY: Open fullscreen directly
+        setTimeout(() => {
+            console.log('🖼️ ===== EMERGENCY FULLSCREEN HANDLER =====');
+
+            const sceneImage = document.getElementById('scene-image');
+            const overlay = document.getElementById('fullscreen-overlay');
+            const fullscreenImg = document.getElementById('fullscreen-image');
+
+            console.log('  Scene image found:', !!sceneImage);
+            console.log('  Scene image src:', sceneImage ? sceneImage.src.substring(0, 60) + '...' : 'N/A');
+            console.log('  Fullscreen overlay found:', !!overlay);
+            console.log('  Fullscreen image found:', !!fullscreenImg);
+
+            if (sceneImage && sceneImage.src && overlay && fullscreenImg) {
+                console.log('✅ All elements found, opening fullscreen...');
+                fullscreenImg.style.opacity = '0';
+                fullscreenImg.src = sceneImage.src;
+                overlay.classList.add('active');
+                console.log('  Overlay class "active" added');
+                console.log('  Image src set to:', sceneImage.src.substring(0, 60) + '...');
+
+                requestAnimationFrame(() => {
+                    fullscreenImg.style.opacity = '1';
+                    console.log('✅ Fullscreen opened with fade-in animation');
+                });
+            } else {
+                console.error('❌ Cannot open fullscreen - missing elements:');
+                console.error('  sceneImage:', !!sceneImage);
+                console.error('  sceneImage.src:', sceneImage ? !!sceneImage.src : false);
+                console.error('  overlay:', !!overlay);
+                console.error('  fullscreenImg:', !!fullscreenImg);
+            }
+        }, 50);
     }
 
     if (e.target.id === 'export-media-button' || e.target.closest('#export-media-button')) {
