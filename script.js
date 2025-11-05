@@ -63,14 +63,34 @@ setTimeout(() => {
     }
 }, 100);
 
-// Global click debugger (for troubleshooting only)
+// Global click debugger AND EMERGENCY HANDLERS for modal buttons
 document.addEventListener('click', (e) => {
     if (e.target.id === 'export-files-button' || e.target.closest('#export-files-button')) {
         console.log('🔍 GLOBAL: Export Files (ZIP) button click detected!');
+
+        // EMERGENCY: Call exportMediaZip directly if main handler doesn't fire
+        setTimeout(async () => {
+            console.log('🚨 EMERGENCY: Calling exportMediaZip() via global handler');
+            const modal = document.getElementById('export-modal');
+            if (modal) modal.style.display = 'none';
+
+            try {
+                if (typeof exportMediaZip === 'function') {
+                    await exportMediaZip();
+                } else {
+                    console.error('❌ exportMediaZip function not defined!');
+                }
+            } catch (error) {
+                console.error('❌ Emergency ZIP export failed:', error);
+                alert(`ZIP export failed: ${error.message}`);
+            }
+        }, 50);
     }
+
     if (e.target.id === 'export-video-button' || e.target.closest('#export-video-button')) {
         console.log('🔍 GLOBAL: Export Video button click detected!');
     }
+
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
         console.log('🔍 GLOBAL: Export modal close click detected!');
     }
