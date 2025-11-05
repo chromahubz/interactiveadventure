@@ -4564,15 +4564,31 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
     console.log('🎬 Scenes to render:', scenes.length);
     console.log('🎬 Include subtitles:', includeSubtitles);
 
+    // Try FFmpeg first, but fall back to MediaRecorder if CORS issues
+    let useFFmpeg = true;
+    let ffmpeg = null;
+    let fetchFile = null;
+
     try {
         // Initialize FFmpeg
-        console.log('🎬 Step 1: Initialize FFmpeg...');
-        const ffmpeg = await initFFmpeg();
-        console.log('✅ FFmpeg initialized');
+        console.log('🎬 Step 1: Try initialize FFmpeg...');
+        ffmpeg = await initFFmpeg();
+        console.log('✅ FFmpeg initialized - using MP4 export');
+        fetchFile = window.FFmpegUtil.fetchFile;
+    } catch (ffmpegError) {
+        console.warn('⚠️ FFmpeg initialization failed (likely CORS on Vercel)');
+        console.warn('⚠️ Falling back to MediaRecorder (WebM format)');
+        console.warn('⚠️ Error was:', ffmpegError.message);
+        useFFmpeg = false;
+    }
 
-        console.log('🎬 Step 2: Get FFmpegUtil functions...');
-        const { fetchFile } = window.FFmpegUtil;
-        console.log('  fetchFile:', typeof fetchFile);
+    try {
+        const statusEl = document.getElementById('export-status');
+
+        if (useFFmpeg) {
+            // FFmpeg Method - MP4 Output
+            console.log('🎬 Step 2: Using FFmpeg method...');
+            console.log('  fetchFile:', typeof fetchFile);
 
         const statusEl = document.getElementById('export-status');
         console.log('  Status element found:', !!statusEl);
