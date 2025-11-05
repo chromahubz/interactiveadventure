@@ -1929,9 +1929,9 @@ body {
 }
 
 #expand-image-button { position:absolute; top:8px; right:8px; z-index:5; padding:6px 10px; }
-#fullscreen-overlay { position:fixed; inset:0; background:rgba(0,0,0,.9); display:none; align-items:center; justify-content:center; z-index:10000; }
+#fullscreen-overlay { position:fixed; inset:0; background:rgba(0,0,0,.9); display:none; align-items:center; justify-content:center; z-index:10000; cursor:pointer; }
 #fullscreen-overlay.active { display:flex; }
-#fullscreen-overlay img { max-width:95vw; max-height:95vh; object-fit:contain; }
+#fullscreen-overlay img { max-width:95vw; max-height:95vh; object-fit:contain; cursor:pointer; }
 #fullscreen-overlay img { transition: opacity .5s ease; }
 #fullscreen-overlay.active::before,
 #fullscreen-overlay.active::after {
