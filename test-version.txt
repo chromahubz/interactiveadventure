@@ -1,0 +1,3 @@
+THIS IS THE MASTER VERSION WITH VOICE SELECTOR!
+If you see this file, you are viewing the correct master version.
+Voice selector should be visible in the toolbar.

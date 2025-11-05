@@ -93,6 +93,15 @@ document.addEventListener('click', (e) => {
 
     if (e.target.id === 'export-modal-close' || e.target.closest('#export-modal-close')) {
         console.log('🔍 GLOBAL: Export modal close click detected!');
+
+        // EMERGENCY: Close modal directly
+        setTimeout(() => {
+            const modal = document.getElementById('export-modal');
+            if (modal && modal.style.display === 'block') {
+                console.log('⚠️ EMERGENCY: Closing export modal via global handler');
+                modal.style.display = 'none';
+            }
+        }, 50);
     }
 }, true);
 
@@ -4150,10 +4159,10 @@ async function exportMediaZip() {
 
         console.log('✅ ==================== ZIP EXPORT COMPLETE ====================');
         if (exportBtn) {
-            const original = exportBtn.innerHTML;
             exportBtn.innerHTML = `<i class="fas fa-check"></i> Downloaded!`;
+            exportBtn.disabled = false;
             setTimeout(() => {
-                exportBtn.innerHTML = original;
+                exportBtn.innerHTML = `<i class="fas fa-file-archive"></i>`;
             }, 2000);
         }
 
@@ -4281,11 +4290,11 @@ function initializeExportModal() {
 
                 console.log('📊 Prepared', scenes.length, 'scenes');
 
-                // Generate video client-side
+                // Generate video client-side with FFmpeg.js
                 const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
 
                 // Download the video
-                const filename = `adventure-${Date.now()}.webm`;
+                const filename = `adventure-${Date.now()}.mp4`;
                 const url = URL.createObjectURL(videoBlob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -4297,7 +4306,7 @@ function initializeExportModal() {
                 // Cleanup
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (WebM format)';
+                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (MP4 format)';
                 console.log('✅ Video export complete:', filename);
 
                 setTimeout(() => {
@@ -4320,142 +4329,198 @@ function initializeExportModal() {
     console.log('✅ Export modal initialization complete');
 }
 
-// CLIENT-SIDE VIDEO EXPORT using Canvas + MediaRecorder (WebM format)
-async function generateVideoClientSide(scenes, includeSubtitles) {
-    console.log('🎬 Starting client-side video generation...', { scenes: scenes.length, subtitles: includeSubtitles });
+// CLIENT-SIDE VIDEO EXPORT using FFmpeg.js (MP4 format)
+let ffmpegInstance = null;
 
-    // Create offscreen canvas
-    const canvas = document.createElement('canvas');
-    canvas.width = 1280;
-    canvas.height = 720;
-    const ctx = canvas.getContext('2d');
+async function initFFmpeg() {
+    if (ffmpegInstance) return ffmpegInstance;
 
-    // Setup MediaRecorder
-    const stream = canvas.captureStream(30); // 30 FPS
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : 'video/webm';
-
-    console.log('📹 Using MIME type:', mimeType);
-
-    const recorder = new MediaRecorder(stream, {
-        mimeType: mimeType,
-        videoBitsPerSecond: 5000000 // 5 Mbps
-    });
-
-    const chunks = [];
-    recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-            chunks.push(e.data);
-            console.log('📦 Chunk received:', e.data.size, 'bytes');
-        }
-    };
-
-    // Start recording
-    recorder.start(100); // Fire dataavailable every 100ms
-    console.log('🔴 Recording started');
-
-    // Render each scene
-    for (let i = 0; i < scenes.length; i++) {
-        const scene = scenes[i];
-        console.log(`🎬 Rendering scene ${i + 1}/${scenes.length}`);
-
-        // Update progress in modal
-        const statusEl = document.getElementById('export-status');
-        if (statusEl) {
-            const progress = Math.round(((i + 1) / scenes.length) * 100);
-            statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Rendering scene ${i + 1}/${scenes.length} (${progress}%)`;
-        }
-
-        // Clear canvas to black
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, 1280, 720);
-
-        // Load and draw image
-        try {
-            const img = await loadImageFromUrl(scene.imageUrl);
-
-            // Calculate aspect ratio fit
-            const imgAspect = img.width / img.height;
-            const canvasAspect = 1280 / 720;
-
-            let drawWidth, drawHeight, drawX, drawY;
-
-            if (imgAspect > canvasAspect) {
-                // Image is wider - fit to width
-                drawWidth = 1280;
-                drawHeight = 1280 / imgAspect;
-                drawX = 0;
-                drawY = (720 - drawHeight) / 2;
-            } else {
-                // Image is taller - fit to height
-                drawHeight = 720;
-                drawWidth = 720 * imgAspect;
-                drawX = (1280 - drawWidth) / 2;
-                drawY = 0;
-            }
-
-            ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-        } catch (error) {
-            console.error('Error loading scene image:', error);
-            ctx.fillStyle = 'white';
-            ctx.font = '32px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('Image loading failed', 640, 360);
-        }
-
-        // Add subtitles if enabled
-        if (includeSubtitles && scene.text) {
-            // Wrap text to multiple lines
-            const maxWidth = 1100;
-            const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
-
-            // Draw subtitle background
-            const lineHeight = 35;
-            const totalHeight = lines.length * lineHeight + 20;
-            const bgY = 720 - totalHeight - 40;
-
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(90, bgY, 1100, totalHeight);
-
-            // Draw subtitle text
-            ctx.fillStyle = 'white';
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 3;
-            ctx.font = '28px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-
-            lines.forEach((line, index) => {
-                const y = bgY + 10 + (index * lineHeight);
-                ctx.strokeText(line, 640, y);
-                ctx.fillText(line, 640, y);
-            });
-        }
-
-        // Hold scene for duration (default 3 seconds if no audio)
-        const duration = scene.audioDuration || 3000;
-        await sleep(duration);
+    console.log('🔧 Initializing FFmpeg.js...');
+    const statusEl = document.getElementById('export-status');
+    if (statusEl) {
+        statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading FFmpeg (first time only)...';
     }
 
-    // Stop recording
-    console.log('⏹️ Stopping recording...');
-    recorder.stop();
+    try {
+        const { FFmpeg } = window.FFmpegWASM;
+        const { fetchFile, toBlobURL } = window.FFmpegUtil;
 
-    // Wait for final chunks and create blob
-    return new Promise((resolve, reject) => {
-        recorder.onstop = () => {
-            console.log('✅ Recording stopped, creating blob...');
-            const blob = new Blob(chunks, { type: mimeType });
-            console.log('📦 Video blob created:', blob.size, 'bytes');
-            resolve(blob);
-        };
+        ffmpegInstance = new FFmpeg();
 
-        recorder.onerror = (error) => {
-            console.error('❌ Recording error:', error);
-            reject(error);
-        };
-    });
+        // Load FFmpeg core
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        await ffmpegInstance.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+        });
+
+        console.log('✅ FFmpeg loaded successfully');
+        return ffmpegInstance;
+    } catch (error) {
+        console.error('❌ Failed to load FFmpeg:', error);
+        throw new Error('FFmpeg initialization failed. Please refresh and try again.');
+    }
+}
+
+async function generateVideoClientSide(scenes, includeSubtitles) {
+    console.log('🎬 Starting FFmpeg.js video generation...', { scenes: scenes.length, subtitles: includeSubtitles });
+
+    try {
+        // Initialize FFmpeg
+        const ffmpeg = await initFFmpeg();
+        const { fetchFile } = window.FFmpegUtil;
+
+        const statusEl = document.getElementById('export-status');
+
+        // Create canvas for rendering frames
+        const canvas = document.createElement('canvas');
+        canvas.width = 1280;
+        canvas.height = 720;
+        const ctx = canvas.getContext('2d');
+
+        // Render each scene as PNG frames
+        const frameFiles = [];
+
+        for (let i = 0; i < scenes.length; i++) {
+            const scene = scenes[i];
+            const progress = Math.round(((i + 1) / scenes.length) * 50); // 0-50% for rendering
+            console.log(`🎬 Rendering frame ${i + 1}/${scenes.length}`);
+
+            if (statusEl) {
+                statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Rendering frames ${i + 1}/${scenes.length} (${progress}%)`;
+            }
+
+            // Clear canvas to black
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 1280, 720);
+
+            // Load and draw image
+            try {
+                const img = await loadImageFromUrl(scene.imageUrl);
+
+                // Calculate aspect ratio fit
+                const imgAspect = img.width / img.height;
+                const canvasAspect = 1280 / 720;
+
+                let drawWidth, drawHeight, drawX, drawY;
+
+                if (imgAspect > canvasAspect) {
+                    drawWidth = 1280;
+                    drawHeight = 1280 / imgAspect;
+                    drawX = 0;
+                    drawY = (720 - drawHeight) / 2;
+                } else {
+                    drawHeight = 720;
+                    drawWidth = 720 * imgAspect;
+                    drawX = (1280 - drawWidth) / 2;
+                    drawY = 0;
+                }
+
+                ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+            } catch (error) {
+                console.error('Error loading scene image:', error);
+                ctx.fillStyle = 'white';
+                ctx.font = '32px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Image loading failed', 640, 360);
+            }
+
+            // Add subtitles if enabled
+            if (includeSubtitles && scene.text) {
+                const maxWidth = 1100;
+                const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+
+                const lineHeight = 35;
+                const totalHeight = lines.length * lineHeight + 20;
+                const bgY = 720 - totalHeight - 40;
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(90, bgY, 1100, totalHeight);
+
+                ctx.fillStyle = 'white';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 3;
+                ctx.font = '28px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+
+                lines.forEach((line, index) => {
+                    const y = bgY + 10 + (index * lineHeight);
+                    ctx.strokeText(line, 640, y);
+                    ctx.fillText(line, 640, y);
+                });
+            }
+
+            // Convert canvas to blob
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const frameName = `frame${String(i).padStart(4, '0')}.png`;
+
+            // Write frame to FFmpeg virtual filesystem
+            await ffmpeg.writeFile(frameName, await fetchFile(blob));
+            frameFiles.push(frameName);
+
+            console.log(`✅ Frame ${i + 1} written: ${frameName}`);
+        }
+
+        // Generate video with FFmpeg
+        console.log('🎬 Encoding video with FFmpeg...');
+        if (statusEl) {
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encoding video (50-100%)...';
+        }
+
+        // Calculate framerate (3 seconds per scene = 1/3 fps, but min 0.5 fps)
+        const fps = Math.max(0.5, 1 / 3); // 3 seconds per frame
+
+        // FFmpeg command: concat frames into video
+        // -framerate: input framerate
+        // -i: input pattern
+        // -c:v libx264: H.264 codec
+        // -pix_fmt yuv420p: pixel format for compatibility
+        // -preset fast: encoding speed
+        // -crf 23: quality (lower = better, 18-28 is good)
+        await ffmpeg.exec([
+            '-framerate', fps.toString(),
+            '-pattern_type', 'glob',
+            '-i', 'frame*.png',
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-preset', 'fast',
+            '-crf', '23',
+            'output.mp4'
+        ]);
+
+        console.log('✅ Video encoding complete');
+
+        if (statusEl) {
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finalizing video...';
+        }
+
+        // Read the output video
+        const data = await ffmpeg.readFile('output.mp4');
+        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+
+        console.log('📦 Video blob created:', videoBlob.size, 'bytes');
+
+        // Cleanup FFmpeg filesystem
+        for (const frameName of frameFiles) {
+            try {
+                await ffmpeg.deleteFile(frameName);
+            } catch (e) {
+                console.warn('Could not delete frame:', frameName);
+            }
+        }
+        try {
+            await ffmpeg.deleteFile('output.mp4');
+        } catch (e) {
+            console.warn('Could not delete output.mp4');
+        }
+
+        return videoBlob;
+
+    } catch (error) {
+        console.error('❌ FFmpeg video generation failed:', error);
+        throw error;
+    }
 }
 
 // Helper function to load image from URL

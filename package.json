@@ -7,9 +7,10 @@
     "server": "node videoServer.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "cors": "^2.8.5",
-    "multer": "^1.4.5-lts.1",
-    "ffmpeg-static": "^5.2.0"
+    "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
+    "multer": "^1.4.5-lts.1"
   }
 }
