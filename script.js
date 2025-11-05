@@ -246,22 +246,22 @@ document.addEventListener('click', (e) => {
         setTimeout(() => {
             console.log('🖼️ ===== EMERGENCY FULLSCREEN HANDLER =====');
 
-            const sceneImage = document.getElementById('scene-image');
+            const locationImage = document.getElementById('location-image');
             const overlay = document.getElementById('fullscreen-overlay');
             const fullscreenImg = document.getElementById('fullscreen-image');
 
-            console.log('  Scene image found:', !!sceneImage);
-            console.log('  Scene image src:', sceneImage ? sceneImage.src.substring(0, 60) + '...' : 'N/A');
+            console.log('  Location image found:', !!locationImage);
+            console.log('  Location image src:', locationImage ? locationImage.src.substring(0, 60) + '...' : 'N/A');
             console.log('  Fullscreen overlay found:', !!overlay);
             console.log('  Fullscreen image found:', !!fullscreenImg);
 
-            if (sceneImage && sceneImage.src && overlay && fullscreenImg) {
+            if (locationImage && locationImage.src && overlay && fullscreenImg) {
                 console.log('✅ All elements found, opening fullscreen...');
                 fullscreenImg.style.opacity = '0';
-                fullscreenImg.src = sceneImage.src;
+                fullscreenImg.src = locationImage.src;
                 overlay.classList.add('active');
                 console.log('  Overlay class "active" added');
-                console.log('  Image src set to:', sceneImage.src.substring(0, 60) + '...');
+                console.log('  Image src set to:', locationImage.src.substring(0, 60) + '...');
 
                 requestAnimationFrame(() => {
                     fullscreenImg.style.opacity = '1';
@@ -269,8 +269,8 @@ document.addEventListener('click', (e) => {
                 });
             } else {
                 console.error('❌ Cannot open fullscreen - missing elements:');
-                console.error('  sceneImage:', !!sceneImage);
-                console.error('  sceneImage.src:', sceneImage ? !!sceneImage.src : false);
+                console.error('  locationImage:', !!locationImage);
+                console.error('  locationImage.src:', locationImage ? !!locationImage.src : false);
                 console.error('  overlay:', !!overlay);
                 console.error('  fullscreenImg:', !!fullscreenImg);
             }
@@ -4475,7 +4475,8 @@ function initializeExportModal() {
 }
 
 // CLIENT-SIDE VIDEO EXPORT using FFmpeg.js (MP4 format)
-let ffmpegInstance = null;
+// Use var instead of let to avoid temporal dead zone issues in ES6 modules
+var ffmpegInstance = null;
 
 async function initFFmpeg() {
     console.log('🔧 ==================== INIT FFMPEG STARTED ====================');
