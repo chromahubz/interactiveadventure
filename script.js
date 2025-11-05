@@ -112,7 +112,7 @@ document.addEventListener('click', (e) => {
     }
 }, true);
 
-// Global click debugger for troubleshooting only
+// Global click debugger AND EMERGENCY HANDLER
 document.addEventListener('click', (e) => {
     if (e.target.id === 'expand-image-button' || e.target.closest('#expand-image-button')) {
         console.log('🔍 GLOBAL: Fullscreen button click detected!', e.target);
@@ -120,6 +120,17 @@ document.addEventListener('click', (e) => {
 
     if (e.target.id === 'export-media-button' || e.target.closest('#export-media-button')) {
         console.log('🔍 GLOBAL: Export button click detected!', e.target);
+
+        // EMERGENCY: Open modal directly
+        setTimeout(() => {
+            const modal = document.getElementById('export-modal');
+            if (modal && modal.style.display !== 'block') {
+                console.log('⚠️ EMERGENCY: Opening export modal via global handler');
+                modal.style.display = 'block';
+                const status = document.getElementById('export-status');
+                if (status) status.innerHTML = '';
+            }
+        }, 50);
     }
 }, true);
 
