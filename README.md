@@ -38,7 +38,7 @@ http://localhost:3100
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/chromahubz/interactiveadventure)
 
-**Note:** Video export feature requires localhost setup.
+**Note:** Video export works on Vercel but generates WebM format instead of MP4.
 
 ## 🔑 API Keys Required
 
@@ -57,7 +57,9 @@ FIREWORKS_API_KEY: 'your-key-here' // Get from: https://fireworks.ai/
 - **Images**: Fireworks AI (Flux-1-schnell-fp8)
 - **Frontend**: Vanilla JavaScript ES6 modules
 - **Audio**: Web Audio API
-- **Video Export** (localhost only): FFmpeg, Node.js Express
+- **Video Export**:
+  - Localhost: FFmpeg.js (MP4 format)
+  - Vercel: MediaRecorder API (WebM format)
 
 ## 🎤 Available Voices
 
@@ -79,7 +81,16 @@ FIREWORKS_API_KEY: 'your-key-here' // Get from: https://fireworks.ai/
 
 ## 📝 Recent Updates
 
-### v1.1.0 (Latest)
+### v1.2.0 (Latest)
+- ✅ Fixed fullscreen button (changed to correct element ID)
+- ✅ Fixed video export with MediaRecorder fallback
+- ✅ Video export now works on Vercel (WebM format)
+- ✅ Video export on localhost uses FFmpeg (MP4 format)
+- ✅ Fixed ffmpegInstance Temporal Dead Zone error
+- ✅ Auto-detects video format and uses correct extension
+- ✅ Comprehensive debugging for all export features
+
+### v1.1.0
 - ✅ Fixed all 27 Groq PlayAI-TTS voices
 - ✅ Fixed JSON parsing (handles markdown code blocks)
 - ✅ Fixed icon backgrounds (white for compatibility)
@@ -94,7 +105,9 @@ FIREWORKS_API_KEY: 'your-key-here' // Get from: https://fireworks.ai/
 
 ## 🐛 Known Issues
 
-- Video export only works on localhost (requires Node.js server)
+- Video format depends on platform:
+  - Localhost: MP4 (FFmpeg.js)
+  - Vercel: WebM (MediaRecorder fallback due to CORS)
 - Some browsers block audio until first user interaction
 
 ## 📄 License

@@ -159,8 +159,14 @@ document.addEventListener('click', (e) => {
                 console.log('🎬 Calling generateVideoClientSide()...');
                 const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
 
-                // Download
-                const filename = `adventure-${Date.now()}.mp4`;
+                // Download with correct extension
+                const isWebM = videoBlob.type.includes('webm');
+                const extension = isWebM ? 'webm' : 'mp4';
+                const filename = `adventure-${Date.now()}.${extension}`;
+                const format = isWebM ? 'WebM' : 'MP4';
+
+                console.log('📹 Video format:', format, '(', videoBlob.type, ')');
+
                 const url = URL.createObjectURL(videoBlob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -170,7 +176,7 @@ document.addEventListener('click', (e) => {
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (MP4 format)';
+                exportStatus.innerHTML = `<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (${format} format)`;
                 console.log('✅ Video export complete:', filename);
 
                 setTimeout(() => {
@@ -4438,8 +4444,14 @@ function initializeExportModal() {
                 const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
                 console.log('✅ generateVideoClientSide() returned blob:', videoBlob.size, 'bytes');
 
-                // Download the video
-                const filename = `adventure-${Date.now()}.mp4`;
+                // Download the video with correct extension
+                const isWebM = videoBlob.type.includes('webm');
+                const extension = isWebM ? 'webm' : 'mp4';
+                const filename = `adventure-${Date.now()}.${extension}`;
+                const format = isWebM ? 'WebM' : 'MP4';
+
+                console.log('📹 Video format:', format, '(', videoBlob.type, ')');
+
                 const url = URL.createObjectURL(videoBlob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -4451,7 +4463,7 @@ function initializeExportModal() {
                 // Cleanup
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-                exportStatus.innerHTML = '<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (MP4 format)';
+                exportStatus.innerHTML = `<i class="fas fa-check" style="color: green;"></i> Video generated successfully! (${format} format)`;
                 console.log('✅ Video export complete:', filename);
 
                 setTimeout(() => {
@@ -4763,6 +4775,167 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
 
         console.log('✅ ==================== VIDEO GENERATION COMPLETE ====================');
         return videoBlob;
+
+        } else {
+            // MediaRecorder Method - WebM Output (Fallback for Vercel/CORS issues)
+            console.log('🎬 Step 2: Using MediaRecorder method (WebM format)...');
+            console.log('  This is used when FFmpeg is blocked by CORS (Vercel deployment)');
+
+            // Create canvas for rendering
+            console.log('🎬 Step 3: Create canvas...');
+            const canvas = document.createElement('canvas');
+            canvas.width = 1280;
+            canvas.height = 720;
+            const ctx = canvas.getContext('2d');
+            console.log('✅ Canvas created: 1280x720');
+
+            // Get canvas stream
+            console.log('🎬 Step 4: Capture canvas stream...');
+            const stream = canvas.captureStream(30); // 30 fps
+            console.log('✅ Canvas stream captured at 30 fps');
+
+            // Setup MediaRecorder
+            console.log('🎬 Step 5: Initialize MediaRecorder...');
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm';
+            console.log('  MIME type:', mimeType);
+
+            const chunks = [];
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: 2500000 // 2.5 Mbps
+            });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunks.push(event.data);
+                    console.log('  📹 Recorded chunk:', event.data.size, 'bytes');
+                }
+            };
+
+            // Start recording
+            console.log('🎬 Step 6: Start recording...');
+            mediaRecorder.start(100); // Capture every 100ms
+            console.log('✅ MediaRecorder started');
+
+            // Render each scene with timing
+            console.log('🎬 Step 7: Render scenes...');
+            const sceneDuration = 3000; // 3 seconds per scene
+
+            for (let i = 0; i < scenes.length; i++) {
+                const scene = scenes[i];
+                const progress = Math.round(((i + 1) / scenes.length) * 100);
+                console.log(`🎬 ===== Rendering scene ${i + 1}/${scenes.length} (${progress}%) =====`);
+
+                if (statusEl) {
+                    statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Recording scene ${i + 1}/${scenes.length} (${progress}%)`;
+                }
+
+                // Clear canvas to black
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, 1280, 720);
+
+                // Load and draw image
+                try {
+                    const img = await loadImageFromUrl(scene.imageUrl);
+
+                    // Calculate aspect ratio fit
+                    const imgAspect = img.width / img.height;
+                    const canvasAspect = 1280 / 720;
+
+                    let drawWidth, drawHeight, drawX, drawY;
+
+                    if (imgAspect > canvasAspect) {
+                        drawWidth = 1280;
+                        drawHeight = 1280 / imgAspect;
+                        drawX = 0;
+                        drawY = (720 - drawHeight) / 2;
+                    } else {
+                        drawHeight = 720;
+                        drawWidth = 720 * imgAspect;
+                        drawX = (1280 - drawWidth) / 2;
+                        drawY = 0;
+                    }
+
+                    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                    console.log(`  ✅ Image drawn to canvas`);
+                } catch (error) {
+                    console.error('  ❌ Error loading scene image:', error);
+                    ctx.fillStyle = 'white';
+                    ctx.font = '32px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Image loading failed', 640, 360);
+                }
+
+                // Add subtitles if enabled
+                if (includeSubtitles && scene.text) {
+                    const maxWidth = 1100;
+                    const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+
+                    const lineHeight = 35;
+                    const totalHeight = lines.length * lineHeight + 20;
+                    const bgY = 720 - totalHeight - 40;
+
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillRect(90, bgY, 1100, totalHeight);
+
+                    ctx.fillStyle = 'white';
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 3;
+                    ctx.font = '28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+
+                    lines.forEach((line, index) => {
+                        const y = bgY + 10 + (index * lineHeight);
+                        ctx.strokeText(line, 640, y);
+                        ctx.fillText(line, 640, y);
+                    });
+                    console.log(`  ✅ Subtitles added (${lines.length} lines)`);
+                }
+
+                // Wait for scene duration
+                console.log(`  ⏱️ Waiting ${sceneDuration}ms for scene recording...`);
+                await new Promise(resolve => setTimeout(resolve, sceneDuration));
+            }
+
+            // Stop recording
+            console.log('🎬 Step 8: Stop recording...');
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finalizing video...';
+            }
+
+            const videoBlob = await new Promise((resolve, reject) => {
+                mediaRecorder.onstop = () => {
+                    console.log('✅ MediaRecorder stopped');
+                    console.log('📦 Creating video blob from', chunks.length, 'chunks');
+
+                    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                    console.log('  Total size:', totalSize, 'bytes');
+
+                    const blob = new Blob(chunks, { type: mimeType });
+                    console.log('✅ Video blob created:', blob.size, 'bytes (', (blob.size / 1024 / 1024).toFixed(2), 'MB )');
+                    resolve(blob);
+                };
+
+                mediaRecorder.onerror = (event) => {
+                    console.error('❌ MediaRecorder error:', event.error);
+                    reject(event.error);
+                };
+
+                mediaRecorder.stop();
+            });
+
+            // Stop all tracks
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log('  ✅ Track stopped:', track.kind);
+            });
+
+            console.log('✅ ==================== VIDEO GENERATION COMPLETE (WebM) ====================');
+            return videoBlob;
+        }
 
     } catch (error) {
         console.error('❌ ==================== VIDEO GENERATION FAILED ====================');
