@@ -3972,9 +3972,25 @@ function initializeButtonListeners() {
 /* Export media as ZIP */
 async function exportMediaZip() {
     console.log('📦 ==================== ZIP EXPORT STARTED ====================');
+    console.log('📦 Function called at:', new Date().toISOString());
+    console.log('📦 Call stack:', new Error().stack);
+
+    // Check if arrays exist
+    console.log('📊 Checking data availability...');
+    console.log('  generatedImages exists?', typeof generatedImages !== 'undefined');
+    console.log('  ttsAudioUrls exists?', typeof ttsAudioUrls !== 'undefined');
+
+    if (typeof generatedImages === 'undefined' || typeof ttsAudioUrls === 'undefined') {
+        console.error('❌ CRITICAL: Arrays not defined!');
+        alert('Export system not initialized. Please refresh the page.');
+        return;
+    }
+
     console.log('📊 Available data:', {
         images: generatedImages.length,
-        audio: ttsAudioUrls.length
+        audio: ttsAudioUrls.length,
+        imagesArray: generatedImages,
+        audioArray: ttsAudioUrls
     });
 
     if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
@@ -3985,16 +4001,26 @@ async function exportMediaZip() {
 
     try {
         // Disable button and show loading
-        console.log('🔒 Disabling export button');
-        exportMediaButton.disabled = true;
-        const original = exportMediaButton.innerHTML;
-        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Preparing ZIP...`;
+        console.log('🔒 Attempting to disable export button...');
+        const exportBtn = document.getElementById('export-media-button');
+        console.log('  Export button found?', !!exportBtn);
+
+        if (exportBtn) {
+            exportBtn.disabled = true;
+            const original = exportBtn.innerHTML;
+            exportBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Preparing ZIP...`;
+            console.log('✅ Export button updated with loading indicator');
+        } else {
+            console.warn('⚠️ Export button not found, continuing anyway...');
+        }
 
         // Initialize JSZip
-        console.log('📦 Initializing JSZip');
+        console.log('📦 Checking JSZip library...');
+        console.log('  JSZip type:', typeof JSZip);
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip library not loaded. Check internet connection.');
         }
+        console.log('✅ JSZip library available');
 
         const zip = new JSZip();
         const imgFolder = zip.folder('images');
@@ -4022,12 +4048,13 @@ async function exportMediaZip() {
 
         // Export images
         console.log(`📷 Exporting ${generatedImages.length} images...`);
-        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting images...`;
+        if (exportBtn) exportBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting images...`;
 
         for (let i = 0; i < generatedImages.length; i++) {
             const item = generatedImages[i];
-            console.log(`  Image ${i + 1}/${generatedImages.length}`);
+            console.log(`  Image ${i + 1}/${generatedImages.length}:`, item);
             const blob = await toBlob(item.url);
+            console.log(`    Blob size: ${blob.size} bytes`);
             const ext = extFromUrl(item.url, 'png');
             const name = `scene-${String(item.index).padStart(3,'0')}.${ext}`;
             imgFolder.file(name, blob);
@@ -4036,12 +4063,13 @@ async function exportMediaZip() {
 
         // Export audio
         console.log(`🎤 Exporting ${ttsAudioUrls.length} audio files...`);
-        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting audio...`;
+        if (exportBtn) exportBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Exporting audio...`;
 
         for (let i = 0; i < ttsAudioUrls.length; i++) {
             const item = ttsAudioUrls[i];
-            console.log(`  Audio ${i + 1}/${ttsAudioUrls.length}`);
+            console.log(`  Audio ${i + 1}/${ttsAudioUrls.length}:`, item);
             const blob = await toBlob(item.url);
+            console.log(`    Blob size: ${blob.size} bytes`);
             const ext = extFromUrl(item.url, 'mp3');
             const name = `tts-${String(item.index).padStart(3,'0')}.${ext}`;
             audioFolder.file(name, blob);
@@ -4050,7 +4078,7 @@ async function exportMediaZip() {
 
         // Generate ZIP
         console.log('🗜️ Generating ZIP file...');
-        exportMediaButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Creating ZIP...`;
+        if (exportBtn) exportBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Creating ZIP...`;
 
         const outBlob = await zip.generateAsync({
             type: 'blob',
@@ -4061,36 +4089,62 @@ async function exportMediaZip() {
         console.log(`✅ ZIP created: ${outBlob.size} bytes (${(outBlob.size / (1024 * 1024)).toFixed(2)} MB)`);
 
         // Download
+        console.log('💾 Creating download link...');
         const ts = new Date().toISOString().replace(/[:.]/g,'-');
         const filename = `rpg-media-${ts}.zip`;
-        console.log(`💾 Downloading: ${filename}`);
+        console.log(`  Filename: ${filename}`);
 
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(outBlob);
+        const blobUrl = URL.createObjectURL(outBlob);
+        console.log(`  Blob URL created: ${blobUrl}`);
+        a.href = blobUrl;
         a.download = filename;
+        console.log(`  Download link created:`, a);
+
         document.body.appendChild(a);
+        console.log('  Link added to DOM');
+
         a.click();
+        console.log('  Link clicked - download should start!');
+
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        console.log('  Link removed from DOM');
+
+        setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+            console.log('  Blob URL revoked');
+        }, 1000);
 
         console.log('✅ ==================== ZIP EXPORT COMPLETE ====================');
-        exportMediaButton.innerHTML = `<i class="fas fa-check"></i> Downloaded!`;
-        setTimeout(() => {
-            exportMediaButton.innerHTML = original;
-        }, 2000);
+        if (exportBtn) {
+            const original = exportBtn.innerHTML;
+            exportBtn.innerHTML = `<i class="fas fa-check"></i> Downloaded!`;
+            setTimeout(() => {
+                exportBtn.innerHTML = original;
+            }, 2000);
+        }
 
     } catch (error) {
         console.error('❌ ==================== ZIP EXPORT FAILED ====================');
         console.error('❌ Error:', error);
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
         console.error('❌ Stack:', error.stack);
         alert(`Export failed: ${error.message}\n\nCheck console (F12) for details.`);
-        exportMediaButton.innerHTML = `<i class="fas fa-times"></i> Failed`;
-        setTimeout(() => {
-            exportMediaButton.innerHTML = `<i class="fas fa-file-archive"></i>`;
-        }, 2000);
+
+        const exportBtn2 = document.getElementById('export-media-button');
+        if (exportBtn2) {
+            exportBtn2.innerHTML = `<i class="fas fa-times"></i> Failed`;
+            setTimeout(() => {
+                exportBtn2.innerHTML = `<i class="fas fa-file-archive"></i>`;
+            }, 2000);
+        }
     } finally {
-        exportMediaButton.disabled = false;
-        console.log('🔓 Export button re-enabled');
+        const exportBtn3 = document.getElementById('export-media-button');
+        if (exportBtn3) {
+            exportBtn3.disabled = false;
+            console.log('🔓 Export button re-enabled');
+        }
     }
 }
 
