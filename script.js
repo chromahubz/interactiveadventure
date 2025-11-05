@@ -1770,8 +1770,8 @@ async function addWeapon(name, stats, description, iconPrompt) {
     const li = document.createElement('li');
     li.classList.add('weapon');
     li.id = uniqueId;
-    li.addEventListener('click', () => equipItem(uniqueId, 'weapon'));
 
+    // Will attach click handlers after icon loads
     const img = document.createElement('img');
     img.alt = name;
     img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -1811,10 +1811,19 @@ async function addWeapon(name, stats, description, iconPrompt) {
     // Add to the in-memory array
     weapons.push(newWeapon);
 
-    // Add a separate button or interaction for equipping if desired
-    // For now, let's add an equip button to the modal, or make the whole list item an equip button still
-    // Re-adding the original equip functionality
-    li.addEventListener('dblclick', () => equipItem(uniqueId, 'weapon'));
+    // Attach click handlers - consistent with armor/rings
+    // Click to view details, double-click to equip
+    li.addEventListener('click', () => showDetailsModal({
+        name: newWeapon.name,
+        description: newWeapon.description,
+        iconUrl: newWeapon.iconUrl,
+        type: "Weapon",
+        info: { header: 'Stats', value: newWeapon.stats }
+    }));
+    li.addEventListener('dblclick', () => {
+        equipItem(uniqueId, 'weapon');
+        hideDetailsModal();
+    });
 }
 
 // --- Armor Management ---
@@ -2854,7 +2863,8 @@ fileLoader.addEventListener('change', async (event) => {
                 const li = document.createElement('li');
                 li.classList.add('weapon');
                 li.id = weapon.id;
-                li.addEventListener('click', () => equipItem(weapon.id, 'weapon'));
+
+                // Click to view details, double-click to equip
                 li.addEventListener('click', () => showDetailsModal({
                     name: weapon.name,
                     description: weapon.description,
@@ -2862,6 +2872,10 @@ fileLoader.addEventListener('change', async (event) => {
                     type: "Weapon",
                     info: { header: 'Stats', value: weapon.stats }
                 }));
+                li.addEventListener('dblclick', () => {
+                    equipItem(weapon.id, 'weapon');
+                    hideDetailsModal();
+                });
                 const img = document.createElement('img');
                 img.alt = weapon.name;
                 img.src = weapon.iconUrl;
@@ -4128,25 +4142,9 @@ function initializeExportModal() {
         exportMediaButton: !!exportMediaButton
     });
 
-    // Open export modal instead of directly exporting
-    if (exportMediaButton) {
-        exportMediaButton.addEventListener('click', () => {
-            console.log('📦 Export button clicked!', {
-                images: generatedImages.length,
-                audio: ttsAudioUrls.length
-            });
-
-            if ((!generatedImages.length) && (!ttsAudioUrls.length)) {
-                alert('No images or audio to export yet. Play the game first to generate content!');
-                return;
-            }
-            exportModal.style.display = 'block';
-            exportStatus.innerHTML = '';
-        });
-        console.log('✅ Export media button listener attached');
-    } else {
-        console.error('❌ exportMediaButton not found!');
-    }
+    // Export media button already initialized in initializeButtonListeners()
+    // No need to attach listener here - would create duplicate
+    console.log('ℹ️ Export media button listener handled by initializeButtonListeners()');
 
     // Close modal
     if (exportModalClose) {
