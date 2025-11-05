@@ -3872,7 +3872,7 @@ voiceReadButton.addEventListener('click', async () => {
 // Initialize button event listeners (called after DOM is ready)
 function initializeButtonListeners() {
     try {
-        console.log('🔧 initializeButtonListeners() STARTING...');
+        console.log('🔥🔥🔥 ===== initializeButtonListeners() STARTING ===== 🔥🔥🔥');
 
         // Query elements directly here (in case top-level queries were too early)
         const expandBtn = document.getElementById('expand-image-button');
@@ -3884,6 +3884,7 @@ function initializeButtonListeners() {
         console.log('🔧 Elements found:', {
             expandImageButton: !!expandBtn,
             exportMediaButton: !!exportBtn,
+            exportMediaButtonElement: exportBtn,
             fullscreenOverlay: !!overlay,
             fullscreenImage: !!fullscreenImg,
             locationImage: !!locImg
@@ -3928,6 +3929,7 @@ function initializeButtonListeners() {
         if (exportBtn) {
             exportBtn.addEventListener('click', (e) => {
                 try {
+                    console.log('🔥🔥🔥 ===== MAIN EXPORT HANDLER FIRED ===== 🔥🔥🔥');
                     console.log('📦 Export button clicked!', {
                         target: e.target,
                         currentTarget: e.currentTarget,
@@ -3958,9 +3960,9 @@ function initializeButtonListeners() {
                     console.error('❌ Error in export click handler:', err);
                 }
             }, true); // Use capture to catch clicks on child elements too
-            console.log('✅ Export button listener attached');
+            console.log('🔥🔥🔥 ===== Export button listener ATTACHED SUCCESSFULLY ===== 🔥🔥🔥');
         } else {
-            console.error('❌ exportMediaButton not found in DOM!');
+            console.error('❌❌❌ ===== exportMediaButton NOT FOUND in DOM ===== ❌❌❌');
         }
 
         console.log('🔧 initializeButtonListeners() COMPLETE!');
@@ -4468,10 +4470,14 @@ function sleep(ms) {
 }
 
 // Initialize buttons immediately (script loads as module at end of HTML, so DOM is ready)
+console.log('🔥🔥🔥 ===== INITIALIZATION STARTING ===== 🔥🔥🔥');
 console.log('📌 Calling initializeButtonListeners() at end of script');
 console.log('📌 document.readyState:', document.readyState);
 initializeButtonListeners();
+console.log('✅ initializeButtonListeners() call completed');
 
 // Initialize export modal
 console.log('📌 Calling initializeExportModal() at end of script');
 initializeExportModal();
+console.log('✅ initializeExportModal() call completed');
+console.log('🔥🔥🔥 ===== INITIALIZATION COMPLETE ===== 🔥🔥🔥');
