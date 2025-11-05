@@ -4245,19 +4245,26 @@ function initializeExportModal() {
     // Export video button handler
     if (exportVideoButton) {
         exportVideoButton.addEventListener('click', async () => {
-            console.log('🎬 ===== Export Video button clicked (main handler) =====');
+            console.log('🎬 ==================== VIDEO EXPORT STARTED ====================');
+            console.log('🎬 Button clicked at:', new Date().toISOString());
 
             const includeSubtitles = exportSubtitlesCheckbox.checked;
+            console.log('🎬 Include subtitles:', includeSubtitles);
+
             exportVideoButton.disabled = true;
             exportFilesButton.disabled = true;
             exportStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating video... This may take a few minutes.';
 
             try {
-                console.log('🎬 Video export started - preparing scenes...');
+                console.log('🎬 Checking data availability...');
+                console.log('  generatedImages:', generatedImages ? generatedImages.length : 'undefined');
+                console.log('  ttsAudioUrls:', ttsAudioUrls ? ttsAudioUrls.length : 'undefined');
+                console.log('  narrativeTexts:', narrativeTexts ? narrativeTexts.length : 'undefined');
 
                 // Prepare scenes data
                 const scenes = [];
                 const maxScenes = Math.max(generatedImages.length, ttsAudioUrls.length);
+                console.log('🎬 Max scenes to prepare:', maxScenes);
 
                 for (let i = 0; i < maxScenes; i++) {
                     const scene = {};
@@ -4266,20 +4273,26 @@ function initializeExportModal() {
                     if (generatedImages.length > 0) {
                         const imgIndex = Math.min(i, generatedImages.length - 1);
                         scene.imageUrl = generatedImages[imgIndex].url;
+                        console.log(`  Scene ${i + 1}: Image URL = ${scene.imageUrl.substring(0, 50)}...`);
                     }
 
                     // Get audio duration if available
                     if (ttsAudioUrls.length > i && ttsAudioUrls[i].duration) {
                         scene.audioDuration = ttsAudioUrls[i].duration;
+                        console.log(`  Scene ${i + 1}: Audio duration = ${scene.audioDuration}ms`);
                     }
 
                     // Get text (optional, for subtitles)
                     if (narrativeTexts.length > i) {
                         scene.text = narrativeTexts[i].text;
+                        console.log(`  Scene ${i + 1}: Text length = ${scene.text.length} chars`);
                     }
 
                     // Skip scene if no image
-                    if (!scene.imageUrl) continue;
+                    if (!scene.imageUrl) {
+                        console.warn(`  Scene ${i + 1}: Skipped (no image)`);
+                        continue;
+                    }
 
                     scenes.push(scene);
                 }
@@ -4288,10 +4301,12 @@ function initializeExportModal() {
                     throw new Error('No scenes to export. Play the game to generate images first!');
                 }
 
-                console.log('📊 Prepared', scenes.length, 'scenes');
+                console.log('✅ Prepared', scenes.length, 'scenes successfully');
+                console.log('🎬 Calling generateVideoClientSide()...');
 
                 // Generate video client-side with FFmpeg.js
                 const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
+                console.log('✅ generateVideoClientSide() returned blob:', videoBlob.size, 'bytes');
 
                 // Download the video
                 const filename = `adventure-${Date.now()}.mp4`;
@@ -4333,58 +4348,122 @@ function initializeExportModal() {
 let ffmpegInstance = null;
 
 async function initFFmpeg() {
-    if (ffmpegInstance) return ffmpegInstance;
+    console.log('🔧 ==================== INIT FFMPEG STARTED ====================');
 
-    console.log('🔧 Initializing FFmpeg.js...');
+    if (ffmpegInstance) {
+        console.log('✅ FFmpeg already initialized, returning cached instance');
+        return ffmpegInstance;
+    }
+
     const statusEl = document.getElementById('export-status');
     if (statusEl) {
         statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading FFmpeg (first time only)...';
     }
 
     try {
+        console.log('🔍 Checking window.FFmpegWASM...');
+        console.log('  window.FFmpegWASM exists?', typeof window.FFmpegWASM !== 'undefined');
+        console.log('  window.FFmpegWASM:', window.FFmpegWASM);
+
+        if (typeof window.FFmpegWASM === 'undefined') {
+            throw new Error('FFmpegWASM library not loaded. Check script tags in index.html');
+        }
+
+        console.log('🔍 Checking window.FFmpegUtil...');
+        console.log('  window.FFmpegUtil exists?', typeof window.FFmpegUtil !== 'undefined');
+        console.log('  window.FFmpegUtil:', window.FFmpegUtil);
+
+        if (typeof window.FFmpegUtil === 'undefined') {
+            throw new Error('FFmpegUtil library not loaded. Check script tags in index.html');
+        }
+
         const { FFmpeg } = window.FFmpegWASM;
         const { fetchFile, toBlobURL } = window.FFmpegUtil;
 
-        ffmpegInstance = new FFmpeg();
+        console.log('✅ FFmpeg libraries loaded');
+        console.log('  FFmpeg constructor:', typeof FFmpeg);
+        console.log('  fetchFile function:', typeof fetchFile);
+        console.log('  toBlobURL function:', typeof toBlobURL);
 
-        // Load FFmpeg core
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-        await ffmpegInstance.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+        console.log('🔧 Creating FFmpeg instance...');
+        ffmpegInstance = new FFmpeg();
+        console.log('✅ FFmpeg instance created:', ffmpegInstance);
+
+        // Add logging
+        ffmpegInstance.on('log', ({ message }) => {
+            console.log('📹 FFmpeg:', message);
         });
 
-        console.log('✅ FFmpeg loaded successfully');
+        ffmpegInstance.on('progress', ({ progress, time }) => {
+            console.log(`📹 FFmpeg progress: ${(progress * 100).toFixed(2)}% (time: ${time})`);
+        });
+
+        // Load FFmpeg core
+        console.log('📦 Loading FFmpeg WASM core...');
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        console.log('  Base URL:', baseURL);
+
+        console.log('📦 Converting URLs to blob URLs...');
+        const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+        console.log('  Core URL:', coreURL);
+
+        const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+        console.log('  WASM URL:', wasmURL);
+
+        console.log('📦 Calling ffmpeg.load()...');
+        await ffmpegInstance.load({
+            coreURL: coreURL,
+            wasmURL: wasmURL
+        });
+
+        console.log('✅ ==================== FFMPEG LOADED SUCCESSFULLY ====================');
         return ffmpegInstance;
     } catch (error) {
-        console.error('❌ Failed to load FFmpeg:', error);
-        throw new Error('FFmpeg initialization failed. Please refresh and try again.');
+        console.error('❌ ==================== FFMPEG INIT FAILED ====================');
+        console.error('❌ Error:', error);
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Stack:', error.stack);
+        throw new Error(`FFmpeg initialization failed: ${error.message}`);
     }
 }
 
 async function generateVideoClientSide(scenes, includeSubtitles) {
-    console.log('🎬 Starting FFmpeg.js video generation...', { scenes: scenes.length, subtitles: includeSubtitles });
+    console.log('🎬 ==================== GENERATE VIDEO STARTED ====================');
+    console.log('🎬 Scenes to render:', scenes.length);
+    console.log('🎬 Include subtitles:', includeSubtitles);
 
     try {
         // Initialize FFmpeg
+        console.log('🎬 Step 1: Initialize FFmpeg...');
         const ffmpeg = await initFFmpeg();
+        console.log('✅ FFmpeg initialized');
+
+        console.log('🎬 Step 2: Get FFmpegUtil functions...');
         const { fetchFile } = window.FFmpegUtil;
+        console.log('  fetchFile:', typeof fetchFile);
 
         const statusEl = document.getElementById('export-status');
+        console.log('  Status element found:', !!statusEl);
 
         // Create canvas for rendering frames
+        console.log('🎬 Step 3: Create canvas...');
         const canvas = document.createElement('canvas');
         canvas.width = 1280;
         canvas.height = 720;
         const ctx = canvas.getContext('2d');
+        console.log('✅ Canvas created: 1280x720');
 
         // Render each scene as PNG frames
         const frameFiles = [];
+        console.log('🎬 Step 4: Render frames...');
 
         for (let i = 0; i < scenes.length; i++) {
             const scene = scenes[i];
             const progress = Math.round(((i + 1) / scenes.length) * 50); // 0-50% for rendering
-            console.log(`🎬 Rendering frame ${i + 1}/${scenes.length}`);
+            console.log(`🎬 ===== Rendering frame ${i + 1}/${scenes.length} (${progress}%) =====`);
+            console.log(`  Scene imageUrl: ${scene.imageUrl ? scene.imageUrl.substring(0, 60) + '...' : 'N/A'}`);
+            console.log(`  Scene text length: ${scene.text ? scene.text.length : 0} chars`);
 
             if (statusEl) {
                 statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Rendering frames ${i + 1}/${scenes.length} (${progress}%)`;
@@ -4452,33 +4531,40 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
             }
 
             // Convert canvas to blob
+            console.log(`  Converting canvas to PNG blob...`);
             const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            console.log(`  ✅ Canvas converted to blob: ${blob.size} bytes`);
+
             const frameName = `frame${String(i).padStart(4, '0')}.png`;
+            console.log(`  Frame filename: ${frameName}`);
 
             // Write frame to FFmpeg virtual filesystem
-            await ffmpeg.writeFile(frameName, await fetchFile(blob));
+            console.log(`  Converting blob to buffer for FFmpeg...`);
+            const fileData = await fetchFile(blob);
+            console.log(`  ✅ File data ready: ${fileData.byteLength} bytes`);
+
+            console.log(`  Writing to FFmpeg filesystem...`);
+            await ffmpeg.writeFile(frameName, fileData);
             frameFiles.push(frameName);
 
-            console.log(`✅ Frame ${i + 1} written: ${frameName}`);
+            console.log(`✅ Frame ${i + 1} written successfully: ${frameName} (${blob.size} bytes)`);
         }
 
         // Generate video with FFmpeg
-        console.log('🎬 Encoding video with FFmpeg...');
+        console.log('🎬 ==================== FFMPEG ENCODING STARTED ====================');
+        console.log('🎬 Total frames written:', frameFiles.length);
+        console.log('🎬 Frame files:', frameFiles);
+
         if (statusEl) {
             statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encoding video (50-100%)...';
         }
 
         // Calculate framerate (3 seconds per scene = 1/3 fps, but min 0.5 fps)
         const fps = Math.max(0.5, 1 / 3); // 3 seconds per frame
+        console.log('🎬 Framerate:', fps, 'fps');
 
-        // FFmpeg command: concat frames into video
-        // -framerate: input framerate
-        // -i: input pattern
-        // -c:v libx264: H.264 codec
-        // -pix_fmt yuv420p: pixel format for compatibility
-        // -preset fast: encoding speed
-        // -crf 23: quality (lower = better, 18-28 is good)
-        await ffmpeg.exec([
+        // FFmpeg command
+        const ffmpegArgs = [
             '-framerate', fps.toString(),
             '-pattern_type', 'glob',
             '-i', 'frame*.png',
@@ -4487,38 +4573,62 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
             '-preset', 'fast',
             '-crf', '23',
             'output.mp4'
-        ]);
+        ];
+        console.log('🎬 FFmpeg command:', ffmpegArgs.join(' '));
+        console.log('🎬 Calling ffmpeg.exec()...');
 
-        console.log('✅ Video encoding complete');
+        await ffmpeg.exec(ffmpegArgs);
+
+        console.log('✅ ==================== FFMPEG ENCODING COMPLETE ====================');
 
         if (statusEl) {
             statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Finalizing video...';
         }
 
         // Read the output video
+        console.log('📦 Reading output.mp4 from FFmpeg filesystem...');
         const data = await ffmpeg.readFile('output.mp4');
-        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        console.log('✅ Output file read:', data.byteLength, 'bytes');
 
-        console.log('📦 Video blob created:', videoBlob.size, 'bytes');
+        console.log('📦 Creating video blob...');
+        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        console.log('✅ Video blob created:', videoBlob.size, 'bytes (', (videoBlob.size / 1024 / 1024).toFixed(2), 'MB )');
 
         // Cleanup FFmpeg filesystem
+        console.log('🧹 Cleaning up FFmpeg filesystem...');
+        let deletedCount = 0;
         for (const frameName of frameFiles) {
             try {
                 await ffmpeg.deleteFile(frameName);
+                deletedCount++;
             } catch (e) {
-                console.warn('Could not delete frame:', frameName);
+                console.warn('  ⚠️ Could not delete frame:', frameName, e.message);
             }
         }
+        console.log(`✅ Deleted ${deletedCount}/${frameFiles.length} frames`);
+
         try {
             await ffmpeg.deleteFile('output.mp4');
+            console.log('✅ Deleted output.mp4');
         } catch (e) {
-            console.warn('Could not delete output.mp4');
+            console.warn('  ⚠️ Could not delete output.mp4:', e.message);
         }
 
+        console.log('✅ ==================== VIDEO GENERATION COMPLETE ====================');
         return videoBlob;
 
     } catch (error) {
-        console.error('❌ FFmpeg video generation failed:', error);
+        console.error('❌ ==================== VIDEO GENERATION FAILED ====================');
+        console.error('❌ Error:', error);
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+
+        if (error.message && error.message.includes('FFmpegWASM')) {
+            console.error('❌ DIAGNOSIS: FFmpeg library not loaded properly');
+            console.error('   Check that index.html has the script tags for @ffmpeg/ffmpeg and @ffmpeg/util');
+        }
+
         throw error;
     }
 }
