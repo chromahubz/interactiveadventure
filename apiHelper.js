@@ -448,8 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        console.warn('⚠️ All TTS methods failed, continuing without audio');
-                        return null;
+                        console.log('🔄 Trying Edge TTS as fallback...');
+                        return await tryEdgeTTS(text, voice);
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -458,8 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                console.warn('⚠️ All TTS methods failed, continuing without audio');
-                return null;
+                console.log('🔄 Trying Edge TTS as fallback...');
+                return await tryEdgeTTS(text, voice);
             }
 
             const blob = await response.blob();
@@ -468,11 +468,113 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            console.warn('⚠️ All TTS methods failed, continuing without audio');
-            return null;
+            console.log('🔄 Trying Edge TTS as fallback...');
+            return await tryEdgeTTS(text, voice);
         }
     }
 };
+
+// Microsoft Edge TTS fallback function
+// FREE unlimited TTS using Microsoft Edge's neural voices
+// Creates real audio files (MP3) that can be controlled and recorded
+async function tryEdgeTTS(text, voice) {
+    try {
+        console.log('🎤 Edge TTS Request:', {
+            text: text.substring(0, 50) + '...',
+            length: text.length
+        });
+
+        // Edge TTS API endpoint (free hosted service)
+        const url = 'https://tts.travisvn.com/v1/audio/speech';
+
+        // Map to Edge TTS voice names (high-quality neural voices)
+        // Using en-US voices for consistency
+        const edgeVoiceMap = {
+            // Female voices → Microsoft female neural voices
+            'AALIYAH': 'en-US-JennyNeural',
+            'ADELAIDE': 'en-US-AriaNeural',
+            'ARISTA': 'en-US-SaraNeural',
+            'CELESTE': 'en-US-JennyNeural',
+            'CHEYENNE': 'en-US-AriaNeural',
+            'DEEDEE': 'en-US-SaraNeural',
+            'ELEANOR': 'en-US-JennyNeural',
+            'GAIL': 'en-US-AriaNeural',
+            'JENNIFER': 'en-US-JennyNeural',
+            'JUDY': 'en-US-SaraNeural',
+            'MAMAW': 'en-US-AriaNeural',
+            'NIA': 'en-US-JennyNeural',
+            'RUBY': 'en-US-SaraNeural',
+
+            // Male voices → Microsoft male neural voices
+            'ANGELO': 'en-US-GuyNeural',
+            'ATLAS': 'en-US-DavisNeural',
+            'BASIL': 'en-US-TonyNeural',
+            'BRIGGS': 'en-US-GuyNeural',
+            'CALUM': 'en-US-GuyNeural', // Default narrator
+            'CHIP': 'en-US-TonyNeural',
+            'CILLIAN': 'en-US-DavisNeural',
+            'FRITZ': 'en-US-GuyNeural',
+            'MASON': 'en-US-DavisNeural',
+            'MIKAIL': 'en-US-TonyNeural',
+            'MITCH': 'en-US-GuyNeural',
+            'THUNDER': 'en-US-DavisNeural',
+
+            // Neutral voices
+            'INDIGO': 'en-US-AriaNeural',
+            'QUINN': 'en-US-GuyNeural',
+
+            // Legacy
+            'NARRATOR': 'en-US-GuyNeural',
+            'MALE': 'en-US-DavisNeural',
+            'FEMALE': 'en-US-JennyNeural',
+            'MYSTERIOUS': 'en-US-AriaNeural'
+        };
+
+        // Get Edge voice name (default to Guy if not found)
+        const edgeVoice = edgeVoiceMap[voice?.toUpperCase()] || 'en-US-GuyNeural';
+        console.log(`🎤 Using Edge voice: ${edgeVoice} for ${voice}`);
+
+        // Make request to Edge TTS API
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'tts-1', // OpenAI-compatible format
+                voice: edgeVoice,
+                input: text,
+                response_format: 'mp3',
+                speed: 1.0
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Edge TTS API error:', response.status, errorText);
+            console.warn('⚠️ Edge TTS failed, continuing without audio');
+            return null;
+        }
+
+        // Get audio blob
+        const blob = await response.blob();
+        const url_blob = URL.createObjectURL(blob);
+
+        console.log('✅ Edge TTS success! Blob size:', blob.size, 'bytes');
+        console.log('🔊 Audio format: MP3 (compatible with video export)');
+
+        return { url: url_blob, blob: blob };
+    } catch (error) {
+        console.error('❌ Edge TTS error:', error);
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        console.warn('⚠️ All TTS methods failed, continuing without audio');
+        return null;
+    }
+}
 
 // Export default for easy import
 export default websim;
