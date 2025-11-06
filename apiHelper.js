@@ -448,8 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        console.log('🔄 Trying Web Speech TTS as fallback...');
-                        return await tryWebSpeechTTS(text, voice);
+                        console.warn('⚠️ All TTS methods failed, continuing without audio');
+                        return null;
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -458,8 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                console.log('🔄 Trying Web Speech TTS as fallback...');
-                return await tryWebSpeechTTS(text, voice);
+                console.warn('⚠️ All TTS methods failed, continuing without audio');
+                return null;
             }
 
             const blob = await response.blob();
@@ -468,101 +468,11 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            console.log('🔄 Trying Web Speech TTS as fallback...');
-            return await tryWebSpeechTTS(text, voice);
+            console.warn('⚠️ All TTS methods failed, continuing without audio');
+            return null;
         }
     }
 };
-
-// Web Speech API TTS fallback function
-// Built-in browser TTS - works everywhere, no API keys needed
-async function tryWebSpeechTTS(text, voice) {
-    return new Promise((resolve, reject) => {
-        try {
-            console.log('🎤 Web Speech TTS Request:', {
-                text: text.substring(0, 50) + '...',
-                length: text.length
-            });
-
-            // Check if Web Speech API is available
-            if (!window.speechSynthesis) {
-                console.error('❌ Web Speech API not supported in this browser');
-                resolve(null);
-                return;
-            }
-
-            // Create utterance
-            const utterance = new SpeechSynthesisUtterance(text);
-
-            // Configure voice settings
-            utterance.lang = 'en-US';
-            utterance.rate = 0.9; // Slightly slower for better clarity
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
-
-            // Try to find a good voice
-            const voices = speechSynthesis.getVoices();
-            console.log('🔍 Available Web Speech voices:', voices.length);
-
-            // Prefer Google or Microsoft natural voices
-            const preferredVoice = voices.find(v =>
-                v.lang.startsWith('en') &&
-                (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft'))
-            ) || voices.find(v => v.lang.startsWith('en'));
-
-            if (preferredVoice) {
-                utterance.voice = preferredVoice;
-                console.log('🎤 Using voice:', preferredVoice.name);
-            }
-
-            // Record audio using MediaRecorder
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const destination = audioContext.createMediaStreamDestination();
-            const mediaRecorder = new MediaRecorder(destination.stream);
-            const audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const url = URL.createObjectURL(audioBlob);
-
-                console.log('✅ Web Speech TTS success! Blob size:', audioBlob.size, 'bytes');
-                console.log('🔊 Audio duration estimated:', text.length / 15, 'seconds');
-
-                resolve({ url, blob: audioBlob });
-            };
-
-            utterance.onend = () => {
-                console.log('🎤 Speech synthesis complete');
-                mediaRecorder.stop();
-            };
-
-            utterance.onerror = (event) => {
-                console.error('❌ Web Speech TTS error:', event.error);
-                mediaRecorder.stop();
-                resolve(null);
-            };
-
-            // Start recording and speaking
-            mediaRecorder.start();
-            speechSynthesis.speak(utterance);
-
-            console.log('🎤 Web Speech synthesis started...');
-
-        } catch (error) {
-            console.error('❌ Web Speech TTS error:', error);
-            console.error('Error details:', {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-            });
-            resolve(null);
-        }
-    });
-}
 
 // Export default for easy import
 export default websim;
