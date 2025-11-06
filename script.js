@@ -98,12 +98,14 @@ document.addEventListener('click', (e) => {
             const exportVideoButton = document.getElementById('export-video-button');
             const exportFilesButton = document.getElementById('export-files-button');
             const exportSubtitlesCheckbox = document.getElementById('export-subtitles-checkbox');
+            const exportMusicCheckbox = document.getElementById('export-music-checkbox');
             const exportStatus = document.getElementById('export-status');
 
             console.log('  Export modal found:', !!exportModal);
             console.log('  Export video button found:', !!exportVideoButton);
             console.log('  Export status element found:', !!exportStatus);
             console.log('  Subtitles checkbox found:', !!exportSubtitlesCheckbox);
+            console.log('  Music checkbox found:', !!exportMusicCheckbox);
 
             if (!exportVideoButton || !exportStatus) {
                 console.error('❌ Cannot start video export - missing elements');
@@ -111,7 +113,9 @@ document.addEventListener('click', (e) => {
             }
 
             const includeSubtitles = exportSubtitlesCheckbox ? exportSubtitlesCheckbox.checked : false;
+            const includeMusic = exportMusicCheckbox ? exportMusicCheckbox.checked : false;
             console.log('  Include subtitles:', includeSubtitles);
+            console.log('  Include music:', includeMusic);
 
             exportVideoButton.disabled = true;
             if (exportFilesButton) exportFilesButton.disabled = true;
@@ -157,7 +161,7 @@ document.addEventListener('click', (e) => {
 
                 // Call video generation
                 console.log('🎬 Calling generateVideoClientSide()...');
-                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
+                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles, includeMusic);
 
                 // Download with correct extension
                 const isWebM = videoBlob.type.includes('webm');
@@ -4385,7 +4389,9 @@ function initializeExportModal() {
             console.log('🎬 Button clicked at:', new Date().toISOString());
 
             const includeSubtitles = exportSubtitlesCheckbox.checked;
+            const includeMusic = exportMusicCheckbox.checked;
             console.log('🎬 Include subtitles:', includeSubtitles);
+            console.log('🎬 Include music:', includeMusic);
 
             exportVideoButton.disabled = true;
             exportFilesButton.disabled = true;
@@ -4441,7 +4447,7 @@ function initializeExportModal() {
                 console.log('🎬 Calling generateVideoClientSide()...');
 
                 // Generate video client-side with FFmpeg.js
-                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles);
+                const videoBlob = await generateVideoClientSide(scenes, includeSubtitles, includeMusic);
                 console.log('✅ generateVideoClientSide() returned blob:', videoBlob.size, 'bytes');
 
                 // Download the video with correct extension
@@ -4652,10 +4658,11 @@ function parseSubtitleChunks(text, totalDuration) {
     return timings;
 }
 
-async function generateVideoClientSide(scenes, includeSubtitles) {
+async function generateVideoClientSide(scenes, includeSubtitles, includeMusic = false) {
     console.log('🎬 ==================== GENERATE VIDEO STARTED ====================');
     console.log('🎬 Scenes to render:', scenes.length);
     console.log('🎬 Include subtitles:', includeSubtitles);
+    console.log('🎬 Include background music:', includeMusic);
 
     // Try FFmpeg first, but fall back to MediaRecorder if CORS issues
     let useFFmpeg = true;
@@ -4907,6 +4914,42 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
 
             console.log(`✅ Loaded ${totalAudioLoaded}/${scenes.length} audio tracks`);
 
+            // Load background music if enabled
+            let musicBuffer = null;
+            let musicSource = null;
+            let musicGain = null;
+
+            if (includeMusic) {
+                console.log('🎬 Step 4c: Loading background music...');
+                try {
+                    const backgroundMusic = document.getElementById('background-music');
+                    if (backgroundMusic && backgroundMusic.src) {
+                        console.log('  Fetching:', backgroundMusic.src);
+                        const response = await fetch(backgroundMusic.src);
+                        const arrayBuffer = await response.arrayBuffer();
+                        musicBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        console.log(`  ✅ Background music loaded: ${musicBuffer.duration.toFixed(2)}s`);
+
+                        // Create looping music source with lower volume
+                        musicSource = audioContext.createBufferSource();
+                        musicSource.buffer = musicBuffer;
+                        musicSource.loop = true; // Loop the music
+
+                        musicGain = audioContext.createGain();
+                        musicGain.gain.value = 0.15; // 15% volume (subtle background)
+
+                        musicSource.connect(musicGain);
+                        musicGain.connect(audioDestination);
+
+                        console.log('  ✅ Music source created with loop and 15% volume');
+                    } else {
+                        console.warn('  ⚠️ Background music element not found or no src');
+                    }
+                } catch (error) {
+                    console.warn('  ⚠️ Failed to load background music:', error);
+                }
+            }
+
             // Merge video and audio streams
             const stream = new MediaStream([
                 ...videoStream.getVideoTracks(),
@@ -4957,6 +5000,12 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
             console.log('🎬 Step 6: Start recording...');
             mediaRecorder.start();
             console.log('✅ MediaRecorder started');
+
+            // Start background music if available
+            if (musicSource) {
+                musicSource.start(0);
+                console.log('🎵 Background music started (looping at 15% volume)');
+            }
 
             // Render each scene with timing
             console.log('🎬 Step 7: Render scenes...');
@@ -5129,6 +5178,12 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 }
 
                 console.log(`  ✅ Scene ${i + 1} recorded (${framesForScene} frames)`);
+            }
+
+            // Stop background music if playing
+            if (musicSource) {
+                musicSource.stop();
+                console.log('🎵 Background music stopped');
             }
 
             // Stop recording
