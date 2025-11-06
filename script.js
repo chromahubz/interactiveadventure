@@ -3901,8 +3901,17 @@ async function generateTTSForMessage(text, messageElement) {
 
         const audioData = {
             url: result.url,
-            audio: new Audio(result.url)
+            audio: new Audio(result.url),
+            isWebSpeech: result.isWebSpeech || false, // Flag if using Web Speech API
+            text: text, // Store original text for Web Speech replay
+            duration: result.duration || 0 // Store estimated duration
         };
+
+        console.log('🎤 Generated TTS:', {
+            isWebSpeech: audioData.isWebSpeech,
+            duration: audioData.duration,
+            text: text.substring(0, 50) + '...'
+        });
 
         // Cache it
         ttsAudioCache.set(text, audioData);
@@ -3927,6 +3936,71 @@ async function toggleMessageAudio(messageElement, text, button) {
     }
 
     messageElement._audioData = audioData;
+
+    // Check if this is Web Speech API
+    if (audioData.isWebSpeech) {
+        console.log('🎤 Web Speech TTS detected');
+
+        // If currently speaking this message, stop it
+        if (window.currentSpeechUtterance && messageElement._isSpeaking) {
+            console.log('🛑 Stopping Web Speech');
+            window.speechSynthesis.cancel();
+            messageElement._isSpeaking = false;
+            window.currentSpeechUtterance = null;
+            button.innerHTML = '<i class="fas fa-volume-up"></i>';
+            button.classList.remove('playing');
+            return;
+        }
+
+        // Stop any other playing audio or speech
+        stopAllAudio();
+
+        // Create new utterance for Web Speech
+        const utterance = new SpeechSynthesisUtterance(audioData.text);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        // Try to find a good voice
+        const voices = speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v =>
+            v.lang.startsWith('en') &&
+            (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        utterance.onend = () => {
+            console.log('🎤 Web Speech ended');
+            button.innerHTML = '<i class="fas fa-volume-up"></i>';
+            button.classList.remove('playing');
+            messageElement._isSpeaking = false;
+            window.currentSpeechUtterance = null;
+        };
+
+        utterance.onerror = (event) => {
+            console.error('Web Speech error:', event.error);
+            button.innerHTML = '<i class="fas fa-volume-up"></i>';
+            button.classList.remove('playing');
+            messageElement._isSpeaking = false;
+            window.currentSpeechUtterance = null;
+        };
+
+        // Start speaking
+        window.currentSpeechUtterance = utterance;
+        messageElement._isSpeaking = true;
+        button.innerHTML = '<i class="fas fa-stop"></i>';
+        button.classList.add('playing');
+
+        console.log('🎤 Starting Web Speech synthesis...');
+        window.speechSynthesis.speak(utterance);
+        return;
+    }
+
+    // Regular HTML5 audio handling
     const audio = audioData.audio;
 
     // If this audio is playing, stop it
@@ -3940,15 +4014,7 @@ async function toggleMessageAudio(messageElement, text, button) {
     }
 
     // Stop any other playing audio
-    if (currentTtsAudio && !currentTtsAudio.paused) {
-        currentTtsAudio.pause();
-        currentTtsAudio.currentTime = 0;
-        // Update other button states
-        document.querySelectorAll('.message-audio-btn.playing').forEach(btn => {
-            btn.innerHTML = '<i class="fas fa-volume-up"></i>';
-            btn.classList.remove('playing');
-        });
-    }
+    stopAllAudio();
 
     // Play this audio
     currentTtsAudio = audio;
@@ -3970,6 +4036,34 @@ async function toggleMessageAudio(messageElement, text, button) {
         button.innerHTML = '<i class="fas fa-volume-up"></i>';
         button.classList.remove('playing');
     }
+}
+
+// Helper function to stop all audio (both HTML5 and Web Speech)
+function stopAllAudio() {
+    // Stop HTML5 audio
+    if (currentTtsAudio && !currentTtsAudio.paused) {
+        currentTtsAudio.pause();
+        currentTtsAudio.currentTime = 0;
+    }
+
+    // Stop Web Speech
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+    }
+
+    // Update all button states
+    document.querySelectorAll('.message-audio-btn.playing').forEach(btn => {
+        btn.innerHTML = '<i class="fas fa-volume-up"></i>';
+        btn.classList.remove('playing');
+    });
+
+    // Clear speaking flags
+    document.querySelectorAll('.message').forEach(msg => {
+        msg._isSpeaking = false;
+    });
+
+    currentTtsAudio = null;
+    window.currentSpeechUtterance = null;
 }
 
 // New: Function to process text-to-speech (simplified - now just for legacy support)
