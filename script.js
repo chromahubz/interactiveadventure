@@ -4793,8 +4793,45 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
 
             // Get canvas stream with manual frame request mode
             console.log('🎬 Step 4: Capture canvas stream...');
-            const stream = canvas.captureStream(0); // 0 = manual mode, use requestFrame()
-            console.log('✅ Canvas stream captured in manual mode');
+            const videoStream = canvas.captureStream(0); // 0 = manual mode, use requestFrame()
+            console.log('✅ Canvas video stream captured in manual mode');
+
+            // Create audio context and merge audio from TTS
+            console.log('🎬 Step 4b: Creating audio stream...');
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioDestination = audioContext.createMediaStreamDestination();
+
+            // Load and prepare all audio for scenes
+            const audioBuffers = [];
+            let totalAudioLoaded = 0;
+
+            for (let i = 0; i < scenes.length; i++) {
+                if (ttsAudioUrls && ttsAudioUrls[i]) {
+                    try {
+                        console.log(`  Loading audio ${i + 1}/${scenes.length}...`);
+                        const response = await fetch(ttsAudioUrls[i].url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        audioBuffers.push(audioBuffer);
+                        totalAudioLoaded++;
+                        console.log(`  ✅ Audio ${i + 1} loaded: ${audioBuffer.duration.toFixed(2)}s`);
+                    } catch (error) {
+                        console.warn(`  ⚠️ Failed to load audio ${i + 1}:`, error);
+                        audioBuffers.push(null);
+                    }
+                } else {
+                    audioBuffers.push(null);
+                }
+            }
+
+            console.log(`✅ Loaded ${totalAudioLoaded}/${scenes.length} audio tracks`);
+
+            // Merge video and audio streams
+            const stream = new MediaStream([
+                ...videoStream.getVideoTracks(),
+                ...audioDestination.stream.getAudioTracks()
+            ]);
+            console.log('✅ Merged video + audio stream created');
 
             // Setup MediaRecorder with better codec settings
             console.log('🎬 Step 5: Initialize MediaRecorder...');
@@ -4842,6 +4879,15 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
 
             // Render each scene with timing
             console.log('🎬 Step 7: Render scenes...');
+            console.log('🎬 TOTAL SCENES TO RENDER:', scenes.length);
+            console.log('🎬 Include subtitles:', includeSubtitles);
+            console.log('🎬 Scenes data:', scenes.map((s, i) => ({
+                index: i + 1,
+                hasImage: !!s.imageUrl,
+                hasText: !!s.text,
+                textPreview: s.text ? s.text.substring(0, 50) + '...' : 'N/A'
+            })));
+
             const sceneDuration = 3000; // 3 seconds per scene
             const framesPerSecond = 10; // 10 fps for smooth playback
             const frameInterval = 1000 / framesPerSecond; // 100ms per frame
@@ -4850,6 +4896,8 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 const scene = scenes[i];
                 const progress = Math.round(((i + 1) / scenes.length) * 100);
                 console.log(`🎬 ===== Rendering scene ${i + 1}/${scenes.length} (${progress}%) =====`);
+                console.log(`  Scene has text: ${!!scene.text}`);
+                console.log(`  Subtitles enabled: ${includeSubtitles}`);
 
                 if (statusEl) {
                     statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Recording scene ${i + 1}/${scenes.length} (${progress}%)`;
@@ -4862,6 +4910,16 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                     console.log(`  ✅ Image loaded: ${img.width}x${img.height}`);
                 } catch (error) {
                     console.error('  ❌ Error loading scene image:', error);
+                }
+
+                // Play audio for this scene if available
+                let audioSource = null;
+                if (audioBuffers[i]) {
+                    audioSource = audioContext.createBufferSource();
+                    audioSource.buffer = audioBuffers[i];
+                    audioSource.connect(audioDestination);
+                    audioSource.start(0);
+                    console.log(`  🔊 Audio ${i + 1} playing (${audioBuffers[i].duration.toFixed(2)}s)`);
                 }
 
                 // Render this scene for the full duration
@@ -4929,10 +4987,16 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                     }
 
                     // Request frame capture (critical for manual mode!)
-                    stream.getVideoTracks()[0].requestFrame();
+                    videoStream.getVideoTracks()[0].requestFrame();
 
                     // Wait for next frame interval
                     await new Promise(resolve => setTimeout(resolve, frameInterval));
+                }
+
+                // Stop audio source after scene ends
+                if (audioSource) {
+                    audioSource.stop();
+                    console.log(`  🔇 Audio ${i + 1} stopped`);
                 }
 
                 console.log(`  ✅ Scene ${i + 1} recorded (${framesForScene} frames)`);
@@ -4970,6 +5034,12 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 track.stop();
                 console.log('  ✅ Track stopped:', track.kind);
             });
+
+            // Cleanup audio context
+            if (audioContext) {
+                await audioContext.close();
+                console.log('  ✅ Audio context closed');
+            }
 
             console.log('✅ ==================== VIDEO GENERATION COMPLETE (WebM) ====================');
             return videoBlob;
