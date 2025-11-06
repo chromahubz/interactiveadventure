@@ -4787,22 +4787,41 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
             const ctx = canvas.getContext('2d');
             console.log('✅ Canvas created: 1280x720');
 
-            // Get canvas stream
-            console.log('🎬 Step 4: Capture canvas stream...');
-            const stream = canvas.captureStream(30); // 30 fps
-            console.log('✅ Canvas stream captured at 30 fps');
+            // Draw initial black frame
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 1280, 720);
 
-            // Setup MediaRecorder
+            // Get canvas stream with manual frame request mode
+            console.log('🎬 Step 4: Capture canvas stream...');
+            const stream = canvas.captureStream(0); // 0 = manual mode, use requestFrame()
+            console.log('✅ Canvas stream captured in manual mode');
+
+            // Setup MediaRecorder with better codec settings
             console.log('🎬 Step 5: Initialize MediaRecorder...');
-            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-                ? 'video/webm;codecs=vp9'
-                : 'video/webm';
+            let mimeType;
+            let codecOptions;
+
+            // Try different codecs in order of preference
+            if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+                mimeType = 'video/webm;codecs=vp9';
+                codecOptions = { videoBitsPerSecond: 5000000 }; // 5 Mbps for VP9
+            } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+                mimeType = 'video/webm;codecs=vp8';
+                codecOptions = { videoBitsPerSecond: 8000000 }; // 8 Mbps for VP8 (less efficient)
+            } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                mimeType = 'video/webm';
+                codecOptions = { videoBitsPerSecond: 5000000 };
+            } else {
+                throw new Error('WebM video recording not supported in this browser');
+            }
+
             console.log('  MIME type:', mimeType);
+            console.log('  Bitrate:', codecOptions.videoBitsPerSecond, 'bps');
 
             const chunks = [];
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: mimeType,
-                videoBitsPerSecond: 2500000 // 2.5 Mbps
+                ...codecOptions
             });
 
             mediaRecorder.ondataavailable = (event) => {
@@ -4812,14 +4831,20 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 }
             };
 
+            mediaRecorder.onerror = (event) => {
+                console.error('❌ MediaRecorder error during recording:', event.error);
+            };
+
             // Start recording
             console.log('🎬 Step 6: Start recording...');
-            mediaRecorder.start(100); // Capture every 100ms
+            mediaRecorder.start();
             console.log('✅ MediaRecorder started');
 
             // Render each scene with timing
             console.log('🎬 Step 7: Render scenes...');
             const sceneDuration = 3000; // 3 seconds per scene
+            const framesPerSecond = 10; // 10 fps for smooth playback
+            const frameInterval = 1000 / framesPerSecond; // 100ms per frame
 
             for (let i = 0; i < scenes.length; i++) {
                 const scene = scenes[i];
@@ -4830,72 +4855,87 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                     statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Recording scene ${i + 1}/${scenes.length} (${progress}%)`;
                 }
 
-                // Clear canvas to black
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, 1280, 720);
-
-                // Load and draw image
+                // Load and prepare the image
+                let img = null;
                 try {
-                    const img = await loadImageFromUrl(scene.imageUrl);
-
-                    // Calculate aspect ratio fit
-                    const imgAspect = img.width / img.height;
-                    const canvasAspect = 1280 / 720;
-
-                    let drawWidth, drawHeight, drawX, drawY;
-
-                    if (imgAspect > canvasAspect) {
-                        drawWidth = 1280;
-                        drawHeight = 1280 / imgAspect;
-                        drawX = 0;
-                        drawY = (720 - drawHeight) / 2;
-                    } else {
-                        drawHeight = 720;
-                        drawWidth = 720 * imgAspect;
-                        drawX = (1280 - drawWidth) / 2;
-                        drawY = 0;
-                    }
-
-                    ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-                    console.log(`  ✅ Image drawn to canvas`);
+                    img = await loadImageFromUrl(scene.imageUrl);
+                    console.log(`  ✅ Image loaded: ${img.width}x${img.height}`);
                 } catch (error) {
                     console.error('  ❌ Error loading scene image:', error);
-                    ctx.fillStyle = 'white';
-                    ctx.font = '32px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('Image loading failed', 640, 360);
                 }
 
-                // Add subtitles if enabled
-                if (includeSubtitles && scene.text) {
-                    const maxWidth = 1100;
-                    const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+                // Render this scene for the full duration
+                const framesForScene = Math.ceil(sceneDuration / frameInterval);
+                console.log(`  📹 Recording ${framesForScene} frames over ${sceneDuration}ms`);
 
-                    const lineHeight = 35;
-                    const totalHeight = lines.length * lineHeight + 20;
-                    const bgY = 720 - totalHeight - 40;
+                for (let frameNum = 0; frameNum < framesForScene; frameNum++) {
+                    // Clear canvas to black
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(0, 0, 1280, 720);
 
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    ctx.fillRect(90, bgY, 1100, totalHeight);
+                    // Draw image if loaded
+                    if (img) {
+                        // Calculate aspect ratio fit
+                        const imgAspect = img.width / img.height;
+                        const canvasAspect = 1280 / 720;
 
-                    ctx.fillStyle = 'white';
-                    ctx.strokeStyle = 'black';
-                    ctx.lineWidth = 3;
-                    ctx.font = '28px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'top';
+                        let drawWidth, drawHeight, drawX, drawY;
 
-                    lines.forEach((line, index) => {
-                        const y = bgY + 10 + (index * lineHeight);
-                        ctx.strokeText(line, 640, y);
-                        ctx.fillText(line, 640, y);
-                    });
-                    console.log(`  ✅ Subtitles added (${lines.length} lines)`);
+                        if (imgAspect > canvasAspect) {
+                            drawWidth = 1280;
+                            drawHeight = 1280 / imgAspect;
+                            drawX = 0;
+                            drawY = (720 - drawHeight) / 2;
+                        } else {
+                            drawHeight = 720;
+                            drawWidth = 720 * imgAspect;
+                            drawX = (1280 - drawWidth) / 2;
+                            drawY = 0;
+                        }
+
+                        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+                    } else {
+                        // Error placeholder
+                        ctx.fillStyle = 'white';
+                        ctx.font = '32px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Image loading failed', 640, 360);
+                    }
+
+                    // Add subtitles if enabled
+                    if (includeSubtitles && scene.text) {
+                        const maxWidth = 1100;
+                        const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+
+                        const lineHeight = 35;
+                        const totalHeight = lines.length * lineHeight + 20;
+                        const bgY = 720 - totalHeight - 40;
+
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                        ctx.fillRect(90, bgY, 1100, totalHeight);
+
+                        ctx.fillStyle = 'white';
+                        ctx.strokeStyle = 'black';
+                        ctx.lineWidth = 3;
+                        ctx.font = '28px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+
+                        lines.forEach((line, index) => {
+                            const y = bgY + 10 + (index * lineHeight);
+                            ctx.strokeText(line, 640, y);
+                            ctx.fillText(line, 640, y);
+                        });
+                    }
+
+                    // Request frame capture (critical for manual mode!)
+                    stream.getVideoTracks()[0].requestFrame();
+
+                    // Wait for next frame interval
+                    await new Promise(resolve => setTimeout(resolve, frameInterval));
                 }
 
-                // Wait for scene duration
-                console.log(`  ⏱️ Waiting ${sceneDuration}ms for scene recording...`);
-                await new Promise(resolve => setTimeout(resolve, sceneDuration));
+                console.log(`  ✅ Scene ${i + 1} recorded (${framesForScene} frames)`);
             }
 
             // Stop recording
@@ -4918,7 +4958,7 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 };
 
                 mediaRecorder.onerror = (event) => {
-                    console.error('❌ MediaRecorder error:', event.error);
+                    console.error('❌ MediaRecorder error on stop:', event.error);
                     reject(event.error);
                 };
 
