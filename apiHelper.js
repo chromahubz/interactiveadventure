@@ -496,18 +496,25 @@ async function tryGeminiTTS(text, voice) {
 
         const geminiVoice = geminiVoiceMap[voice] || 'Puck';
 
+        // Use the correct Gemini TTS model: gemini-2.5-flash-tts
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_CONFIG.GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-tts:generateContent?key=${API_CONFIG.GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{
-                        parts: [{ text: text }]
+                        parts: [{
+                            text: `Say the following: ${text}`
+                        }]
                     }],
                     generationConfig: {
                         speechConfig: {
-                            voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } }
+                            voiceConfig: {
+                                prebuiltVoiceConfig: {
+                                    voiceName: geminiVoice
+                                }
+                            }
                         }
                     }
                 })
