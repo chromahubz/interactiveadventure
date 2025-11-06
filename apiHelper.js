@@ -475,94 +475,14 @@ export const websim = {
 };
 
 // Gemini TTS fallback function
+// NOTE: Gemini TTS requires Google Cloud Text-to-Speech API with OAuth authentication
+// This is not easily usable in browser apps without a backend server
+// Disabled for now - Groq TTS with Aaliyah fallback is sufficient
 async function tryGeminiTTS(text, voice) {
-    try {
-        console.log('🎤 Gemini TTS Request:', { text: text.substring(0, 50), voice });
-
-        // Map voices to Gemini voice config (Gemini has different voice system)
-        // Gemini supports: Puck, Charon, Kore, Fenrir, Aoede
-        const geminiVoiceMap = {
-            // Female voices → Aoede or Kore
-            AALIYAH: 'Aoede', ADELAIDE: 'Aoede', ARISTA: 'Kore', CELESTE: 'Aoede',
-            CHEYENNE: 'Kore', DEEDEE: 'Aoede', ELEANOR: 'Kore', GAIL: 'Aoede',
-            JENNIFER: 'Kore', JUDY: 'Aoede', MAMAW: 'Aoede', NIA: 'Kore', RUBY: 'Aoede',
-            // Male voices → Puck, Charon, or Fenrir
-            ANGELO: 'Puck', ATLAS: 'Charon', BASIL: 'Puck', BRIGGS: 'Charon',
-            CALUM: 'Puck', CHIP: 'Puck', CILLIAN: 'Charon', FRITZ: 'Puck',
-            MASON: 'Charon', MIKAIL: 'Puck', MITCH: 'Charon', THUNDER: 'Fenrir',
-            // Neutral
-            INDIGO: 'Kore', QUINN: 'Kore'
-        };
-
-        const geminiVoice = geminiVoiceMap[voice] || 'Puck';
-
-        // Use the correct Gemini TTS model: gemini-2.5-flash-tts
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-tts:generateContent?key=${API_CONFIG.GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: `Say the following: ${text}`
-                        }]
-                    }],
-                    generationConfig: {
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: {
-                                    voiceName: geminiVoice
-                                }
-                            }
-                        }
-                    }
-                })
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Gemini TTS error:', response.status, errorText);
-            return null;
-        }
-
-        const data = await response.json();
-        console.log('🔍 Gemini TTS Full Response:', data);
-
-        // Extract audio data from response
-        if (data.candidates && data.candidates[0]?.content?.parts) {
-            console.log('🔍 Gemini candidates found:', data.candidates.length);
-            console.log('🔍 Gemini parts:', data.candidates[0].content.parts);
-
-            const audioPart = data.candidates[0].content.parts.find(part => part.inlineData?.mimeType?.startsWith('audio/'));
-            console.log('🔍 Gemini audio part:', audioPart);
-
-            if (audioPart?.inlineData?.data) {
-                console.log('🔍 Gemini audio data length:', audioPart.inlineData.data.length);
-
-                // Convert base64 to blob
-                const base64Data = audioPart.inlineData.data;
-                const binaryString = atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                const blob = new Blob([bytes], { type: audioPart.inlineData.mimeType || 'audio/wav' });
-                const url = URL.createObjectURL(blob);
-
-                console.log('✅ Gemini TTS success! Blob size:', blob.size, 'bytes');
-                return { url, blob };
-            }
-        }
-
-        console.error('❌ Gemini TTS: No audio data in response');
-        console.error('Response structure:', JSON.stringify(data, null, 2));
-        return null;
-    } catch (error) {
-        console.error('Gemini TTS Error:', error);
-        return null;
-    }
+    console.warn('⚠️ Gemini TTS fallback is disabled');
+    console.warn('⚠️ Reason: Requires Google Cloud TTS API with OAuth authentication');
+    console.warn('⚠️ Using Groq Aaliyah voice as final fallback instead');
+    return null;
 }
 
 // Export default for easy import
