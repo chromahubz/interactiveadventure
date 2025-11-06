@@ -4571,6 +4571,87 @@ async function initFFmpeg() {
     }
 }
 
+// Helper function to parse subtitles into movie-style chunks with timestamps
+function parseSubtitleChunks(text, totalDuration) {
+    if (!text) return [];
+
+    console.log(`    🎬 Parsing subtitles: "${text.substring(0, 80)}..."`);
+    console.log(`    🎬 Total duration: ${totalDuration.toFixed(2)}s`);
+
+    // Split on sentence boundaries (. ! ?)
+    const sentenceRegex = /[^.!?]+[.!?]+/g;
+    const sentences = text.match(sentenceRegex) || [text];
+    console.log(`    🎬 Found ${sentences.length} sentences`);
+
+    // Group sentences into chunks (max 2 sentences or 150 chars per chunk)
+    const chunks = [];
+    let currentChunk = '';
+    let currentSentences = 0;
+
+    for (const sentence of sentences) {
+        const trimmed = sentence.trim();
+
+        // Check if we should start a new chunk
+        if (currentChunk && (
+            currentSentences >= 2 ||  // Max 2 sentences
+            currentChunk.length + trimmed.length > 150  // Max 150 chars
+        )) {
+            chunks.push(currentChunk);
+            currentChunk = trimmed;
+            currentSentences = 1;
+        } else {
+            currentChunk += (currentChunk ? ' ' : '') + trimmed;
+            currentSentences++;
+        }
+    }
+
+    // Add final chunk
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+
+    console.log(`    🎬 Created ${chunks.length} subtitle chunks`);
+
+    // Calculate proportional timing based on text length
+    const totalChars = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const timings = [];
+    let currentTime = 0;
+
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const proportion = chunk.length / totalChars;
+        const duration = totalDuration * proportion;
+
+        // Minimum 1 second per chunk
+        const finalDuration = Math.max(1.0, duration);
+
+        timings.push({
+            text: chunk,
+            startTime: currentTime,
+            endTime: currentTime + finalDuration
+        });
+
+        currentTime += finalDuration;
+    }
+
+    // Normalize timings to fit exactly within totalDuration
+    if (timings.length > 0) {
+        const actualTotal = timings[timings.length - 1].endTime;
+        if (actualTotal !== totalDuration) {
+            const scale = totalDuration / actualTotal;
+            let adjustedTime = 0;
+            for (const timing of timings) {
+                const duration = (timing.endTime - timing.startTime) * scale;
+                timing.startTime = adjustedTime;
+                timing.endTime = adjustedTime + duration;
+                adjustedTime += duration;
+            }
+        }
+    }
+
+    return timings;
+}
+
 async function generateVideoClientSide(scenes, includeSubtitles) {
     console.log('🎬 ==================== GENERATE VIDEO STARTED ====================');
     console.log('🎬 Scenes to render:', scenes.length);
@@ -4888,7 +4969,6 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                 textPreview: s.text ? s.text.substring(0, 50) + '...' : 'N/A'
             })));
 
-            const sceneDuration = 3000; // 3 seconds per scene
             const framesPerSecond = 10; // 10 fps for smooth playback
             const frameInterval = 1000 / framesPerSecond; // 100ms per frame
 
@@ -4912,6 +4992,16 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                     console.error('  ❌ Error loading scene image:', error);
                 }
 
+                // Calculate scene duration based on audio length
+                let sceneDuration;
+                if (audioBuffers[i]) {
+                    sceneDuration = Math.max(1000, audioBuffers[i].duration * 1000); // Min 1 second
+                    console.log(`  ⏱️ Scene ${i + 1} duration: ${(sceneDuration / 1000).toFixed(2)}s (matches audio)`);
+                } else {
+                    sceneDuration = 3000; // Default 3 seconds if no audio
+                    console.log(`  ⏱️ Scene ${i + 1} duration: 3.00s (no audio, using default)`);
+                }
+
                 // Play audio for this scene if available
                 let audioSource = null;
                 if (audioBuffers[i]) {
@@ -4922,9 +5012,19 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                     console.log(`  🔊 Audio ${i + 1} playing (${audioBuffers[i].duration.toFixed(2)}s)`);
                 }
 
+                // Parse subtitles into movie-style chunks with timestamps
+                let subtitleChunks = [];
+                if (includeSubtitles && scene.text) {
+                    subtitleChunks = parseSubtitleChunks(scene.text, sceneDuration / 1000);
+                    console.log(`  📝 Subtitles: ${subtitleChunks.length} chunks with timestamps`);
+                    subtitleChunks.forEach((chunk, idx) => {
+                        console.log(`     [${chunk.startTime.toFixed(2)}s - ${chunk.endTime.toFixed(2)}s] "${chunk.text.substring(0, 50)}${chunk.text.length > 50 ? '...' : ''}"`);
+                    });
+                }
+
                 // Render this scene for the full duration
                 const framesForScene = Math.ceil(sceneDuration / frameInterval);
-                console.log(`  📹 Recording ${framesForScene} frames over ${sceneDuration}ms`);
+                console.log(`  📹 Recording ${framesForScene} frames over ${sceneDuration.toFixed(0)}ms`);
 
                 for (let frameNum = 0; frameNum < framesForScene; frameNum++) {
                     // Clear canvas to black
@@ -4960,30 +5060,59 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
                         ctx.fillText('Image loading failed', 640, 360);
                     }
 
-                    // Add subtitles if enabled
-                    if (includeSubtitles && scene.text) {
-                        const maxWidth = 1100;
-                        const lines = wrapText(ctx, scene.text, maxWidth, '28px Arial');
+                    // Add movie-style chunked subtitles with fade effects
+                    if (subtitleChunks.length > 0) {
+                        const currentTime = (frameNum * frameInterval) / 1000; // seconds
 
-                        const lineHeight = 35;
-                        const totalHeight = lines.length * lineHeight + 20;
-                        const bgY = 720 - totalHeight - 40;
+                        // Find active subtitle chunk for current time
+                        const activeChunk = subtitleChunks.find(
+                            chunk => currentTime >= chunk.startTime && currentTime < chunk.endTime
+                        );
 
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                        ctx.fillRect(90, bgY, 1100, totalHeight);
+                        if (activeChunk) {
+                            // Calculate fade in/out opacity
+                            const chunkDuration = activeChunk.endTime - activeChunk.startTime;
+                            const timeInChunk = currentTime - activeChunk.startTime;
+                            const fadeTime = 0.3; // 300ms fade
 
-                        ctx.fillStyle = 'white';
-                        ctx.strokeStyle = 'black';
-                        ctx.lineWidth = 3;
-                        ctx.font = '28px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'top';
+                            let opacity = 1.0;
+                            if (timeInChunk < fadeTime) {
+                                opacity = timeInChunk / fadeTime; // Fade in
+                            } else if (timeInChunk > chunkDuration - fadeTime) {
+                                opacity = (chunkDuration - timeInChunk) / fadeTime; // Fade out
+                            }
 
-                        lines.forEach((line, index) => {
-                            const y = bgY + 10 + (index * lineHeight);
-                            ctx.strokeText(line, 640, y);
-                            ctx.fillText(line, 640, y);
-                        });
+                            // Wrap subtitle text to multiple lines
+                            const maxWidth = 1100;
+                            const lines = wrapText(ctx, activeChunk.text, maxWidth, '28px Arial');
+
+                            const lineHeight = 35;
+                            const totalHeight = lines.length * lineHeight + 20;
+                            const bgY = 720 - totalHeight - 40;
+
+                            // Draw background with opacity
+                            ctx.globalAlpha = opacity * 0.7;
+                            ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+                            ctx.fillRect(90, bgY, 1100, totalHeight);
+
+                            // Draw text with opacity
+                            ctx.globalAlpha = opacity;
+                            ctx.fillStyle = 'white';
+                            ctx.strokeStyle = 'black';
+                            ctx.lineWidth = 3;
+                            ctx.font = '28px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'top';
+
+                            lines.forEach((line, index) => {
+                                const y = bgY + 10 + (index * lineHeight);
+                                ctx.strokeText(line, 640, y);
+                                ctx.fillText(line, 640, y);
+                            });
+
+                            // Reset opacity
+                            ctx.globalAlpha = 1.0;
+                        }
                     }
 
                     // Request frame capture (critical for manual mode!)
