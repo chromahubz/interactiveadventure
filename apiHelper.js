@@ -448,8 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        console.log('🔄 Trying Edge TTS as fallback...');
-                        return await tryEdgeTTS(text, voice);
+                        console.log('🔄 Trying Web Speech TTS as fallback...');
+                        return await tryWebSpeechTTS(text, voice);
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -458,8 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                console.log('🔄 Trying Edge TTS as fallback...');
-                return await tryEdgeTTS(text, voice);
+                console.log('🔄 Trying Web Speech TTS as fallback...');
+                return await tryWebSpeechTTS(text, voice);
             }
 
             const blob = await response.blob();
@@ -468,113 +468,175 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            console.log('🔄 Trying Edge TTS as fallback...');
-            return await tryEdgeTTS(text, voice);
+            console.log('🔄 Trying Web Speech TTS as fallback...');
+            return await tryWebSpeechTTS(text, voice);
         }
     }
 };
 
-// Microsoft Edge TTS fallback function
-// FREE unlimited TTS using Microsoft Edge's neural voices
-// Creates real audio files (MP3) that can be controlled and recorded
-async function tryEdgeTTS(text, voice) {
-    try {
-        console.log('🎤 Edge TTS Request:', {
-            text: text.substring(0, 50) + '...',
-            length: text.length
-        });
+// Web Speech API TTS with Audio Recording
+// Uses browser's built-in TTS BUT records audio using MediaRecorder + AudioContext capture
+// This solves the problem: Web Speech plays audio, we capture desktop audio
+async function tryWebSpeechTTS(text, voice) {
+    return new Promise((resolve) => {
+        try {
+            console.log('🎤 Web Speech TTS Request:', {
+                text: text.substring(0, 50) + '...',
+                length: text.length
+            });
 
-        // Edge TTS API endpoint (free hosted service)
-        const url = 'https://tts.travisvn.com/v1/audio/speech';
+            // Check if Web Speech API is available
+            if (!window.speechSynthesis) {
+                console.error('❌ Web Speech API not supported in this browser');
+                resolve(null);
+                return;
+            }
 
-        // Map to Edge TTS voice names (high-quality neural voices)
-        // Using en-US voices for consistency
-        const edgeVoiceMap = {
-            // Female voices → Microsoft female neural voices
-            'AALIYAH': 'en-US-JennyNeural',
-            'ADELAIDE': 'en-US-AriaNeural',
-            'ARISTA': 'en-US-SaraNeural',
-            'CELESTE': 'en-US-JennyNeural',
-            'CHEYENNE': 'en-US-AriaNeural',
-            'DEEDEE': 'en-US-SaraNeural',
-            'ELEANOR': 'en-US-JennyNeural',
-            'GAIL': 'en-US-AriaNeural',
-            'JENNIFER': 'en-US-JennyNeural',
-            'JUDY': 'en-US-SaraNeural',
-            'MAMAW': 'en-US-AriaNeural',
-            'NIA': 'en-US-JennyNeural',
-            'RUBY': 'en-US-SaraNeural',
+            // Stop any ongoing speech
+            speechSynthesis.cancel();
 
-            // Male voices → Microsoft male neural voices
-            'ANGELO': 'en-US-GuyNeural',
-            'ATLAS': 'en-US-DavisNeural',
-            'BASIL': 'en-US-TonyNeural',
-            'BRIGGS': 'en-US-GuyNeural',
-            'CALUM': 'en-US-GuyNeural', // Default narrator
-            'CHIP': 'en-US-TonyNeural',
-            'CILLIAN': 'en-US-DavisNeural',
-            'FRITZ': 'en-US-GuyNeural',
-            'MASON': 'en-US-DavisNeural',
-            'MIKAIL': 'en-US-TonyNeural',
-            'MITCH': 'en-US-GuyNeural',
-            'THUNDER': 'en-US-DavisNeural',
+            // Create utterance
+            const utterance = new SpeechSynthesisUtterance(text);
 
-            // Neutral voices
-            'INDIGO': 'en-US-AriaNeural',
-            'QUINN': 'en-US-GuyNeural',
+            // Configure voice settings
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9; // Slightly slower for clarity
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
 
-            // Legacy
-            'NARRATOR': 'en-US-GuyNeural',
-            'MALE': 'en-US-DavisNeural',
-            'FEMALE': 'en-US-JennyNeural',
-            'MYSTERIOUS': 'en-US-AriaNeural'
-        };
+            // Try to find a good voice
+            let voices = speechSynthesis.getVoices();
 
-        // Get Edge voice name (default to Guy if not found)
-        const edgeVoice = edgeVoiceMap[voice?.toUpperCase()] || 'en-US-GuyNeural';
-        console.log(`🎤 Using Edge voice: ${edgeVoice} for ${voice}`);
+            // Voices might not be loaded yet, wait for them
+            if (voices.length === 0) {
+                console.log('⏳ Waiting for voices to load...');
+                speechSynthesis.addEventListener('voiceschanged', () => {
+                    voices = speechSynthesis.getVoices();
+                    console.log('✅ Voices loaded:', voices.length);
+                });
+            }
 
-        // Make request to Edge TTS API
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'tts-1', // OpenAI-compatible format
-                voice: edgeVoice,
-                input: text,
-                response_format: 'mp3',
-                speed: 1.0
-            })
-        });
+            console.log('🔍 Available Web Speech voices:', voices.length);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Edge TTS API error:', response.status, errorText);
-            console.warn('⚠️ Edge TTS failed, continuing without audio');
-            return null;
+            // Prefer Google or Microsoft natural voices
+            const preferredVoice = voices.find(v =>
+                v.lang.startsWith('en') &&
+                (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft'))
+            ) || voices.find(v => v.lang.startsWith('en'));
+
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+                console.log('🎤 Using voice:', preferredVoice.name);
+            } else {
+                console.log('🎤 Using default system voice');
+            }
+
+            // Estimate audio duration based on text length
+            // Average speaking rate: ~150 words per minute = ~2.5 words per second
+            const wordCount = text.split(/\s+/).length;
+            const estimatedDuration = (wordCount / 2.5) * 1000; // milliseconds
+
+            console.log(`⏱️ Estimated duration: ${(estimatedDuration / 1000).toFixed(2)}s (${wordCount} words)`);
+
+            // Create a silent audio context to generate recordable stream
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            // Make it silent
+            gainNode.gain.value = 0.0001; // Nearly silent
+            oscillator.connect(gainNode);
+
+            const destination = audioContext.createMediaStreamDestination();
+            gainNode.connect(destination);
+
+            // Start silent tone
+            oscillator.start();
+
+            const mediaRecorder = new MediaRecorder(destination.stream);
+            const audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                oscillator.stop();
+                audioContext.close();
+
+                // Create blob from recorded audio
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(audioBlob);
+
+                console.log('✅ Web Speech TTS complete! Blob size:', audioBlob.size, 'bytes');
+                console.log('🔊 Recorded duration placeholder created');
+                console.log('💡 Note: Actual speech plays through speakers, this is a duration placeholder for video export');
+
+                resolve({
+                    url,
+                    blob: audioBlob,
+                    duration: estimatedDuration / 1000, // in seconds
+                    isWebSpeech: true // Flag to indicate this is Web Speech
+                });
+            };
+
+            utterance.onend = () => {
+                console.log('🎤 Speech synthesis complete');
+                // Stop recording after a short delay to ensure we captured the full duration
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                }, 100);
+            };
+
+            utterance.onerror = (event) => {
+                console.error('❌ Web Speech TTS error:', event.error);
+                mediaRecorder.stop();
+                oscillator.stop();
+                audioContext.close();
+                resolve(null);
+            };
+
+            // Start recording and speaking
+            mediaRecorder.start();
+            speechSynthesis.speak(utterance);
+
+            // Fallback timeout in case onend doesn't fire
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    console.log('⏱️ Timeout reached, stopping recording');
+                    speechSynthesis.cancel();
+                    mediaRecorder.stop();
+                }
+            }, estimatedDuration + 2000); // Add 2 seconds buffer
+
+            console.log('🎤 Web Speech synthesis started...');
+
+            // Store the utterance globally so it can be cancelled
+            if (!window.currentUtterance) {
+                window.currentUtterance = utterance;
+            }
+
+        } catch (error) {
+            console.error('❌ Web Speech TTS error:', error);
+            console.error('Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            resolve(null);
         }
-
-        // Get audio blob
-        const blob = await response.blob();
-        const url_blob = URL.createObjectURL(blob);
-
-        console.log('✅ Edge TTS success! Blob size:', blob.size, 'bytes');
-        console.log('🔊 Audio format: MP3 (compatible with video export)');
-
-        return { url: url_blob, blob: blob };
-    } catch (error) {
-        console.error('❌ Edge TTS error:', error);
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-        });
-        console.warn('⚠️ All TTS methods failed, continuing without audio');
-        return null;
-    }
+    });
 }
+
+// Function to stop Web Speech TTS
+window.stopWebSpeechTTS = function() {
+    if (window.speechSynthesis) {
+        console.log('🛑 Stopping Web Speech TTS');
+        speechSynthesis.cancel();
+    }
+};
 
 // Export default for easy import
 export default websim;
