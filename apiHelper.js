@@ -448,8 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        console.log('🔄 Trying Gemini TTS as fallback...');
-                        return await tryGeminiTTS(text, voice);
+                        console.log('🔄 Trying Puter.js TTS as fallback...');
+                        return await tryPuterTTS(text, voice);
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -458,8 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                console.log('🔄 Trying Gemini TTS as fallback...');
-                return await tryGeminiTTS(text, voice);
+                console.log('🔄 Trying Puter.js TTS as fallback...');
+                return await tryPuterTTS(text, voice);
             }
 
             const blob = await response.blob();
@@ -468,21 +468,55 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            console.log('🔄 Trying Gemini TTS as fallback...');
-            return await tryGeminiTTS(text, voice);
+            console.log('🔄 Trying Puter.js TTS as fallback...');
+            return await tryPuterTTS(text, voice);
         }
     }
 };
 
-// Gemini TTS fallback function
-// NOTE: Gemini TTS requires Google Cloud Text-to-Speech API with OAuth authentication
-// This is not easily usable in browser apps without a backend server
-// Disabled for now - Groq TTS with Aaliyah fallback is sufficient
-async function tryGeminiTTS(text, voice) {
-    console.warn('⚠️ Gemini TTS fallback is disabled');
-    console.warn('⚠️ Reason: Requires Google Cloud TTS API with OAuth authentication');
-    console.warn('⚠️ Using Groq Aaliyah voice as final fallback instead');
-    return null;
+// Puter.js TTS fallback function
+// FREE unlimited TTS with neural/generative engines
+// No API keys required, works in browser
+async function tryPuterTTS(text, voice) {
+    try {
+        console.log('🎤 Puter.js TTS Request:', {
+            text: text.substring(0, 50) + '...',
+            length: text.length
+        });
+
+        // Check if Puter.js is loaded
+        if (typeof puter === 'undefined' || !puter.ai || !puter.ai.txt2speech) {
+            console.error('❌ Puter.js library not loaded');
+            return null;
+        }
+
+        // Use generative engine for most human-like quality
+        // Max 3000 chars per request (our scenes are typically 200-500 chars)
+        const audioElement = await puter.ai.txt2speech(text, {
+            engine: "generative", // Most natural sounding
+            language: "en-US"
+        });
+
+        console.log('🔍 Puter.js returned audio element:', audioElement);
+
+        // Puter returns an <audio> element with src already set
+        // We need to fetch the audio data and convert to blob for consistency
+        const response = await fetch(audioElement.src);
+        const audioBlob = await response.blob();
+        const url = URL.createObjectURL(audioBlob);
+
+        console.log('✅ Puter.js TTS success! Blob size:', audioBlob.size, 'bytes');
+
+        return { url, blob: audioBlob };
+    } catch (error) {
+        console.error('❌ Puter.js TTS error:', error);
+        console.error('Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        return null;
+    }
 }
 
 // Export default for easy import
