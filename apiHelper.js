@@ -448,8 +448,8 @@ export const websim = {
 
                     if (!fallbackResponse.ok) {
                         console.error('Groq PlayAI TTS error (fallback):', fallbackResponse.status);
-                        console.log('🔄 Trying Puter.js TTS as fallback...');
-                        return await tryPuterTTS(text, voice);
+                        console.log('🔄 Trying Web Speech TTS as fallback...');
+                        return await tryWebSpeechTTS(text, voice);
                     }
 
                     const blob = await fallbackResponse.blob();
@@ -458,8 +458,8 @@ export const websim = {
                 }
 
                 console.error('Groq PlayAI TTS error:', response.status);
-                console.log('🔄 Trying Puter.js TTS as fallback...');
-                return await tryPuterTTS(text, voice);
+                console.log('🔄 Trying Web Speech TTS as fallback...');
+                return await tryWebSpeechTTS(text, voice);
             }
 
             const blob = await response.blob();
@@ -468,55 +468,100 @@ export const websim = {
             return { url, blob };
         } catch (error) {
             console.error('Groq PlayAI TTS Error:', error);
-            console.log('🔄 Trying Puter.js TTS as fallback...');
-            return await tryPuterTTS(text, voice);
+            console.log('🔄 Trying Web Speech TTS as fallback...');
+            return await tryWebSpeechTTS(text, voice);
         }
     }
 };
 
-// Puter.js TTS fallback function
-// FREE unlimited TTS with neural/generative engines
-// No API keys required, works in browser
-async function tryPuterTTS(text, voice) {
-    try {
-        console.log('🎤 Puter.js TTS Request:', {
-            text: text.substring(0, 50) + '...',
-            length: text.length
-        });
+// Web Speech API TTS fallback function
+// Built-in browser TTS - works everywhere, no API keys needed
+async function tryWebSpeechTTS(text, voice) {
+    return new Promise((resolve, reject) => {
+        try {
+            console.log('🎤 Web Speech TTS Request:', {
+                text: text.substring(0, 50) + '...',
+                length: text.length
+            });
 
-        // Check if Puter.js is loaded
-        if (typeof puter === 'undefined' || !puter.ai || !puter.ai.txt2speech) {
-            console.error('❌ Puter.js library not loaded');
-            return null;
+            // Check if Web Speech API is available
+            if (!window.speechSynthesis) {
+                console.error('❌ Web Speech API not supported in this browser');
+                resolve(null);
+                return;
+            }
+
+            // Create utterance
+            const utterance = new SpeechSynthesisUtterance(text);
+
+            // Configure voice settings
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9; // Slightly slower for better clarity
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            // Try to find a good voice
+            const voices = speechSynthesis.getVoices();
+            console.log('🔍 Available Web Speech voices:', voices.length);
+
+            // Prefer Google or Microsoft natural voices
+            const preferredVoice = voices.find(v =>
+                v.lang.startsWith('en') &&
+                (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft'))
+            ) || voices.find(v => v.lang.startsWith('en'));
+
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+                console.log('🎤 Using voice:', preferredVoice.name);
+            }
+
+            // Record audio using MediaRecorder
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const destination = audioContext.createMediaStreamDestination();
+            const mediaRecorder = new MediaRecorder(destination.stream);
+            const audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(audioBlob);
+
+                console.log('✅ Web Speech TTS success! Blob size:', audioBlob.size, 'bytes');
+                console.log('🔊 Audio duration estimated:', text.length / 15, 'seconds');
+
+                resolve({ url, blob: audioBlob });
+            };
+
+            utterance.onend = () => {
+                console.log('🎤 Speech synthesis complete');
+                mediaRecorder.stop();
+            };
+
+            utterance.onerror = (event) => {
+                console.error('❌ Web Speech TTS error:', event.error);
+                mediaRecorder.stop();
+                resolve(null);
+            };
+
+            // Start recording and speaking
+            mediaRecorder.start();
+            speechSynthesis.speak(utterance);
+
+            console.log('🎤 Web Speech synthesis started...');
+
+        } catch (error) {
+            console.error('❌ Web Speech TTS error:', error);
+            console.error('Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            resolve(null);
         }
-
-        // Use generative engine for most human-like quality
-        // Max 3000 chars per request (our scenes are typically 200-500 chars)
-        const audioElement = await puter.ai.txt2speech(text, {
-            engine: "generative", // Most natural sounding
-            language: "en-US"
-        });
-
-        console.log('🔍 Puter.js returned audio element:', audioElement);
-
-        // Puter returns an <audio> element with src already set
-        // We need to fetch the audio data and convert to blob for consistency
-        const response = await fetch(audioElement.src);
-        const audioBlob = await response.blob();
-        const url = URL.createObjectURL(audioBlob);
-
-        console.log('✅ Puter.js TTS success! Blob size:', audioBlob.size, 'bytes');
-
-        return { url, blob: audioBlob };
-    } catch (error) {
-        console.error('❌ Puter.js TTS error:', error);
-        console.error('Error details:', {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-        });
-        return null;
-    }
+    });
 }
 
 // Export default for easy import
