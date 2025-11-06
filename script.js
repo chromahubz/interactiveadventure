@@ -4601,9 +4601,7 @@ async function generateVideoClientSide(scenes, includeSubtitles) {
             // FFmpeg Method - MP4 Output
             console.log('🎬 Step 2: Using FFmpeg method...');
             console.log('  fetchFile:', typeof fetchFile);
-
-        const statusEl = document.getElementById('export-status');
-        console.log('  Status element found:', !!statusEl);
+            console.log('  Status element found:', !!statusEl);
 
         // Create canvas for rendering frames
         console.log('🎬 Step 3: Create canvas...');
