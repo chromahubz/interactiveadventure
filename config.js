@@ -2,7 +2,7 @@
 // Replace these with your actual API keys
 export const API_CONFIG = {
     GEMINI_API_KEY: 'AIzaSyD_qu413X6P6rfZwzN_lpG1QREQB9j6V5Y', // Get from: https://aistudio.google.com/app/apikey
-    GROQ_API_KEY: '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', // Get from: https://console.groq.com/ (also used for TTS)
+    GROQ_API_KEY: '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', // Get from: https://console.groq.com/ (also used for TTS)
     FIREWORKS_API_KEY: 'fw_3ZQ21zN3zE1WkiNVRfRnM1CE' // Get from: https://fireworks.ai/
 };
 
